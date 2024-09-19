@@ -87,9 +87,9 @@ int main(int argc, char** argv)
             for(const frc::AprilTagDetection* tag : detections) {
                 auto transform = estimator.Estimate(*tag);
                 std::cout << "Tag " << tag->GetId() << "Pose Estimation:" << std::endl;
-                std::cout << "X Off: " << transform.X().value();
-                std::cout << "Y Off: " << transform.Y().value();
-                std::cout << "Z Off: " << transform.Z().value() << std::endl;
+                std::cout << "X Off: " << units::foot_t{transform.X()}.value();
+                std::cout << " Y Off: " << units::foot_t{transform.Y()}.value();
+                std::cout << " Z Off: " << units::foot_t{transform.Z()}.value() << std::endl;
                 std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
                 transform.X();
                 transform.Y();
