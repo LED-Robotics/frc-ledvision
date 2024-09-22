@@ -39,6 +39,16 @@ void printCoordinates(int id) {
     }
 }
 
+Pose3d GetTagPose(int id) {
+    auto idSearch = tagLayout.GetTagPose(id);
+    if(idSearch.has_value()) {  // ensure tag ID exists in our field coordinate system
+        auto tagPose = idSearch.value();
+        return tagPose;
+    } else {
+        std::cout << "Tag with id " << id << " was not found" << std::endl;
+    }
+}
+
 // Init and return all cameras plugged in
 std::vector<cs::UsbCamera> initCameras(cs::VideoMode config) {
     CS_Status status = 0;
@@ -61,6 +71,7 @@ int main(int argc, char** argv)
     auto quadParams = detector.GetQuadThresholdParameters();
     quadParams.minClusterPixels = 3;
     detector.SetQuadThresholdParameters(quadParams);
+    tagLayout.SetOrigin(AprilTagFieldLayout::OriginPosition::kBlueAllianceWallRightSide);
     auto cameras = initCameras(camConfig);
     cs::UsbCamera* testCam = nullptr;
     for(cs::UsbCamera& cam : cameras) {
@@ -85,15 +96,22 @@ int main(int argc, char** argv)
             auto detections = frc::AprilTagDetect(detector, grayFrame);
             // std::cout << detections.size() << " detections!" << std::endl;
             for(const frc::AprilTagDetection* tag : detections) {
-                auto transform = estimator.Estimate(*tag);
-                std::cout << "Tag " << tag->GetId() << "Pose Estimation:" << std::endl;
+                auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
+                // Print relative offset
+                std::cout << "Tag " << tag->GetId() << " Pose Estimation:" << std::endl;
                 std::cout << "X Off: " << units::foot_t{transform.X()}.value();
                 std::cout << " Y Off: " << units::foot_t{transform.Y()}.value();
                 std::cout << " Z Off: " << units::foot_t{transform.Z()}.value() << std::endl;
                 std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
-                transform.X();
-                transform.Y();
-                // Draw boxes around tags
+                std::cout << std::endl;
+                // Print estimated field-coordinates of the camera using the tag detection
+                auto realPose = GetTagPose(tag->GetId());   // actual field coordinate of tag
+                auto estimatedPose = realPose + transform;  // wow this is so easy
+                auto estTranslation = estimatedPose.Translation();
+                std::cout << "Estimated Pose on Field: " << std::endl;
+                std::cout << "X: " << estTranslation.X().value() << "Y: " << estTranslation.Y().value()<< "Z: " << estTranslation.Z().value() << std::endl;
+                std::cout << "Rotation: " << estimatedPose.Rotation().ToRotation2d().Degrees().value() << std::endl;
+                // Draw boxes around tags for video feed
                 for(int i = 0; i < 4; i++) {
                     auto point1 = tag->GetCorner(i);
                     int secondIndex = i == 3 ? 0 : i + 1;   // out of bounds adjust for last iteration
