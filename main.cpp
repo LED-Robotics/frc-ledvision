@@ -239,7 +239,7 @@ int main(int argc, char** argv)
         auto info = cam.GetInfo();
         std::cout << "Camera found: " << std::endl;
         std::cout << info.path << ", " << info.name << std::endl;
-        if(info.name == "Razer Kiyo Pro Ultra") {
+        if(info.name == "Arducam OV9782 USB Camera") {
             std::cout << "Test cam found!" << std::endl;
             testCam = &cam;
         }
