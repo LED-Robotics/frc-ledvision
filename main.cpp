@@ -27,13 +27,15 @@
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
-
 using namespace frc;
 
 // Camera resolution/format configs
 int width = 640;
 int height = 640;
 cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
+
+cv::Mat frame, grayFrame;
+json detections;
 
 // AprilTag detection objects
 AprilTagDetector detector{};
@@ -107,6 +109,7 @@ int getMLServer(struct sockaddr_in *server_address) {
         if (ret > 0) {
             if (FD_ISSET(sock, &readfd)) {
                 count = recvfrom(sock, buffer, 1024, 0, (struct sockaddr*)&server_addr, &addr_len);
+                    server_address->sin_family = server_addr.sin_family;
                     server_address->sin_addr = server_addr.sin_addr;
                     server_address->sin_port = server_addr.sin_port;
             }
@@ -220,11 +223,6 @@ std::vector<cs::UsbCamera> initCameras(cs::VideoMode config) {
 
 int main(int argc, char** argv)
 {   
-    // Find Jetson IP and port
-    struct sockaddr_in server_addr;
-    int result = getMLServer(&server_addr);
-    // Configure socket for inference
-    int sock = getSocket(&server_addr);
     // Configure AprilTag detector
     detector.AddFamily("tag36h11");
     detector.SetConfig({});
@@ -250,14 +248,30 @@ int main(int argc, char** argv)
         cs::CvSink testSink{frc::CameraServer::GetVideo(*testCam)};
         cs::CvSource testSource{"testSource", camConfig};
         frc::CameraServer::StartAutomaticCapture(testSource);
-        cv::Mat frame, grayFrame;
+
+        int frameTime = testSink.GrabFrameNoTimeout(frame);
+        
+        // Spin up separate thread to request inferencing
+        std::thread inferThread([&]{
+            // Find Jetson IP and port
+            struct sockaddr_in server_addr;
+            int result = getMLServer(&server_addr);
+            // Configure socket for inference
+            int sock = getSocket(&server_addr);
+            while(true) {
+                // Do remote inference on frame
+                detections = remoteInference(sock, &server_addr, frame);
+                // detections is a global, so data is allowed to be stale
+                // this is so inference doesn't block AprilTag processing
+            }
+        });
 
         while(true) {
             int frameTime = testSink.GrabFrameNoTimeout(frame);
 
-            // Do remote inference on frame
-            auto mlDetections = remoteInference(sock, &server_addr, frame);
-            for (auto& detection : mlDetections) {
+            // Draw most recent detections
+            // This being up-to-date is the inferThread's responsibility
+            for (auto& detection : detections) {
                 // std::cout << detection << std::endl;
                 int label = detection["label"];
                 if(label != 0) continue;    // only box notes
