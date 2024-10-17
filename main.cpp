@@ -34,8 +34,18 @@ int width = 640;
 int height = 640;
 cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 
-cv::Mat frame, grayFrame;
-json detections;
+struct Detection {
+    int label = -1;
+    double x = 0;
+    double y = 0;
+    double width = 0;
+    double height = 0;
+};
+
+cv::Mat inferFrame;
+json detectionJson;
+std::vector<struct Detection> detections = {};
+bool newInference = false;
 
 // AprilTag detection objects
 AprilTagDetector detector{};
@@ -173,7 +183,7 @@ json remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame) {
         uchar sizeLow = response[sizeof(header) + 1];
         unsigned int size = (sizeHigh << 8) + sizeLow;
         if(size && size < sizeof(response)) {   // Valid JSON is present
-            std::string jsonString(reinterpret_cast<char*>(response + sizeof(header) + 2), size) ;
+            std::string jsonString(reinterpret_cast<char*>(response + sizeof(header) + 2), size);
             // std::cout << jsonString << std::endl;
             json detections = json::parse(jsonString);
             return detections;
@@ -244,12 +254,15 @@ int main(int argc, char** argv)
     }
     // Make sure camera was found and initialized
     if(testCam != nullptr) {
+        std::vector<std::string> classes = {"label", "x", "y", "width", "height"};
+        cv::Mat frame, grayFrame;
         // Setup camera stream
         cs::CvSink testSink{frc::CameraServer::GetVideo(*testCam)};
         cs::CvSource testSource{"testSource", camConfig};
         frc::CameraServer::StartAutomaticCapture(testSource);
 
         int frameTime = testSink.GrabFrameNoTimeout(frame);
+        inferFrame = frame.clone();
         
         // Spin up separate thread to request inferencing
         std::thread inferThread([&]{
@@ -260,9 +273,12 @@ int main(int argc, char** argv)
             int sock = getSocket(&server_addr);
             while(true) {
                 // Do remote inference on frame
-                detections = remoteInference(sock, &server_addr, frame);
-                // detections is a global, so data is allowed to be stale
-                // this is so inference doesn't block AprilTag processing
+                if(!newInference) {
+                    detectionJson = remoteInference(sock, &server_addr, inferFrame);
+                    // detectionJson is a global, so data is allowed to be stale
+                    // this is so inference doesn't block AprilTag processing
+                    newInference = true;
+                }
             }
         });
 
@@ -271,15 +287,31 @@ int main(int argc, char** argv)
 
             // Draw most recent detections
             // This being up-to-date is the inferThread's responsibility
-            for (auto& detection : detections) {
+            if(newInference) {
+                detections.clear();
+                inferFrame = frame.clone();
+                for (auto& detection : detectionJson) {
                 // std::cout << detection << std::endl;
-                int label = detection["label"];
-                if(label != 0) continue;    // only box notes
-                double x = detection["x"];
-                double y = detection["y"];
-                double width = detection["width"];
-                double height = detection["height"];
-                cv::Rect rect(x, y, width, height);
+                for(auto& jsonClass : classes) {
+                    if(!detection.contains(jsonClass))
+                        continue;
+                }
+                    int label = detection["label"];
+                    if(label != 0) continue;    // only box notes
+                    double x = detection["x"];
+                    double y = detection["y"];
+                    double width = detection["width"];
+                    double height = detection["height"];
+                    cv::Rect rect(x, y, width, height);
+                    cv::rectangle(frame, rect, cv::Scalar(255, 0, 0), 2, cv::LINE_4);
+                    detections.push_back({label, x, y, width, height});
+                }
+                // std::cout << std::endl;
+                newInference = false;
+            }
+
+            for (auto& detection : detections) {
+                cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
                 cv::rectangle(frame, rect, cv::Scalar(255, 0, 0), 2, cv::LINE_4);
             }
 
