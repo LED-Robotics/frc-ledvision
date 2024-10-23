@@ -46,6 +46,7 @@ cv::Mat inferFrame;
 json detectionJson;
 std::vector<struct Detection> detections = {};
 bool newInference = false;
+bool newFrame = false;
 
 // AprilTag detection objects
 AprilTagDetector detector{};
@@ -137,12 +138,12 @@ int sendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int r
     fd_set readfd;
     addr_len = sizeof(struct sockaddr_in);
     struct timeval timeout;
-    timeout.tv_usec = 50000;
+    timeout.tv_usec = 500000;
 
     ret = sendto(sock, req_buf, reqSize, 0, (struct sockaddr*) server_addr, addr_len);
     FD_ZERO(&readfd);
     FD_SET(sock, &readfd);
-    ret = select(sock + 1, &readfd, NULL, NULL, NULL);
+    ret = select(sock + 1, &readfd, NULL, NULL, &timeout);
     if (ret > 0) {
         if (FD_ISSET(sock, &readfd)) {
             count = recvfrom(sock, buf, bufSize, 0, (struct sockaddr*) server_addr, &addr_len);
@@ -262,6 +263,7 @@ int main(int argc, char** argv)
         frc::CameraServer::StartAutomaticCapture(testSource);
 
         int frameTime = testSink.GrabFrameNoTimeout(frame);
+        newFrame = true;
         inferFrame = frame.clone();
         
         // Spin up separate thread to request inferencing
@@ -273,7 +275,9 @@ int main(int argc, char** argv)
             int sock = getSocket(&server_addr);
             while(true) {
                 // Do remote inference on frame
-                if(!newInference) {
+                if(!newInference && newFrame) {
+                    newFrame = false;
+                    if(inferFrame.empty()) continue;
                     detectionJson = remoteInference(sock, &server_addr, inferFrame);
                     // detectionJson is a global, so data is allowed to be stale
                     // this is so inference doesn't block AprilTag processing
@@ -284,12 +288,18 @@ int main(int argc, char** argv)
 
         while(true) {
             int frameTime = testSink.GrabFrameNoTimeout(frame);
+            if(frame.empty()) {
+                continue;
+            }
+            if(!newFrame) {
+                inferFrame = frame.clone();
+            }
+            newFrame = true;
 
             // Draw most recent detections
             // This being up-to-date is the inferThread's responsibility
             if(newInference) {
                 detections.clear();
-                inferFrame = frame.clone();
                 for (auto& detection : detectionJson) {
                 // std::cout << detection << std::endl;
                 for(auto& jsonClass : classes) {
