@@ -40,6 +40,7 @@ struct Detection {
     double y = 0;
     double width = 0;
     double height = 0;
+    std::vector<float> kps = {};
 };
 
 cv::Mat inferFrame;
@@ -302,10 +303,10 @@ int main(int argc, char** argv)
                 detections.clear();
                 for (auto& detection : detectionJson) {
                 // std::cout << detection << std::endl;
-                for(auto& jsonClass : classes) {
-                    if(!detection.contains(jsonClass))
-                        continue;
-                }
+                    for(auto& jsonClass : classes) {
+                        if(!detection.contains(jsonClass))
+                            continue;
+                    }
                     int label = detection["label"];
                     if(label != 0) continue;    // only box notes
                     double x = detection["x"];
@@ -314,7 +315,18 @@ int main(int argc, char** argv)
                     double height = detection["height"];
                     cv::Rect rect(x, y, width, height);
                     cv::rectangle(frame, rect, cv::Scalar(255, 0, 0), 2, cv::LINE_4);
-                    detections.push_back({label, x, y, width, height});
+                    if(detection.contains("kps")) {
+                      std::vector<float> kps;
+                      auto points = detection["kps"];
+                      for(auto& point : points) {
+                        kps.push_back(point["x"]);
+                        kps.push_back(point["y"]);
+                        kps.push_back(point["s"]);
+                        detections.push_back({label, x, y, width, height, kps});
+                      }
+                    } else {
+                      detections.push_back({label, x, y, width, height});
+                    }
                 }
                 // std::cout << std::endl;
                 newInference = false;
@@ -323,6 +335,10 @@ int main(int argc, char** argv)
             for (auto& detection : detections) {
                 cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
                 cv::rectangle(frame, rect, cv::Scalar(255, 0, 0), 2, cv::LINE_4);
+                for(int i = 0; i < detection.kps.size(); i += 3) {
+                  cv::Point center(detection.kps[i], detection.kps[i+1]);
+                  cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
+                }
             }
 
             // AprilTag detection requires grayscale
