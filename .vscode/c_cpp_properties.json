@@ -4,16 +4,19 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/local/include/wpimath",
-                "/usr/local/include/cameraserver",
                 "/usr/local/include/ntcore",
-                "/usr/local/include/wpiutil"
+                "/usr/local/include/wpiutil",
+                "/usr/local/include/cameraserver",
+                "/usr/local/include/cscore",
+                "/usr/include/opencv4",
+                "/usr/local/include/wpimath"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/clang",
+            "compilerPath": "/usr/bin/gcc",
             "cStandard": "c17",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "linux-clang-x64"
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
         }
     ],
     "version": 4

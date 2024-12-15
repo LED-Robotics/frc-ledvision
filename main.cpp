@@ -53,6 +53,9 @@ bool newFrame = false;
 AprilTagDetector detector{};
 AprilTagPoseEstimator estimator{{140_mm, (double)width, (double)height, (double)width/2, (double)height/2}};  // dummy numbers
 auto tagLayout = AprilTagFieldLayout::LoadField(AprilTagField::k2024Crescendo);
+const int kNumbOfDataValuePerTag = 4;
+std::vector<double> detectedATagCoords = {};
+std::vector<uint8_t> tagsRequested = {1, 7, 12, 18};
 
 // Signature for Jetson comms
 const uchar udpSignature[] = {0x5b, 0x20, 0xc4, 0x10};
@@ -249,7 +252,7 @@ int main(int argc, char** argv)
         auto info = cam.GetInfo();
         std::cout << "Camera found: " << std::endl;
         std::cout << info.path << ", " << info.name << std::endl;
-        if(info.name == "Arducam OV9782 USB Camera") {
+        if(info.name == "HP Wide Vision HD Camera") {
             std::cout << "Test cam found!" << std::endl;
             testCam = &cam;
         }
@@ -343,26 +346,50 @@ int main(int argc, char** argv)
 
             // AprilTag detection requires grayscale
             cv::cvtColor(frame, grayFrame, cv::COLOR_BGR2GRAY);
+
+            // NT Initialization
+            auto inst = nt::NetworkTableInstance::GetDefault();
+            inst.SetServerTeam(6722);
+            inst.StartClient4("jetson-client");
+            auto table = inst.GetTable("/jetson");
             
+            detectedATagCoords.clear(); 
+            for(int i = 0; i < kNumbOfDataValuePerTag * tagsRequested.size(); i++) {
+                detectedATagCoords.push_back(69420); // All values of the vector default to 69420 unless detected and requested
+            }
+
             auto detections = frc::AprilTagDetect(detector, grayFrame);
+
             // std::cout << detections.size() << " detections!" << std::endl;
             for(const frc::AprilTagDetection* tag : detections) {
                 auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
+                auto findTagTarg = std::find(tagsRequested.begin(), tagsRequested.end(), tag->GetId());
                 // Print relative offset
-                std::cout << "Tag " << tag->GetId() << " Pose Estimation:" << std::endl;
-                std::cout << "X Off: " << units::foot_t{transform.X()}.value();
-                std::cout << " Y Off: " << units::foot_t{transform.Y()}.value();
-                std::cout << " Z Off: " << units::foot_t{transform.Z()}.value() << std::endl;
-                std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
-                std::cout << std::endl;
-                // Print estimated field-coordinates of the camera using the tag detection
-                auto realPose = GetTagPose(tag->GetId());   // actual field coordinate of tag
-                auto estimatedPose = realPose + transform;  // wow this is so easy
-                auto estTranslation = estimatedPose.Translation();
-                std::cout << "Estimated Pose on Field: " << std::endl;
-                std::cout << "X: " << estTranslation.X().value() << "Y: " << estTranslation.Y().value()<< "Z: " << estTranslation.Z().value() << std::endl;
-                std::cout << "Rotation: " << estimatedPose.Rotation().ToRotation2d().Degrees().value() << std::endl;
-                // Draw boxes around tags for video feed
+                    std::cout << "Requested? " << (findTagTarg != tagsRequested.end() ? "Yes" : "No") << std::endl;
+                    std::cout << "Tag " << tag->GetId() << " Pose Estimation:" << std::endl;
+                    std::cout << "X Off: " << units::foot_t{transform.X()}.value();
+                    std::cout << " Y Off: " << units::foot_t{transform.Y()}.value();
+                    std::cout << " Z Off: " << units::foot_t{transform.Z()}.value() << std::endl;
+                    std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
+                    std::cout << std::endl;
+                    // Print estimated field-coordinates of the camera using the tag detection
+                    auto realPose = GetTagPose(tag->GetId());   // actual field coordinate of tag
+                    auto estimatedPose = realPose + transform;  // wow this is so easy
+                    auto estTranslation = estimatedPose.Translation();
+                    std::cout << "Estimated Pose on Field: " << std::endl;
+                    std::cout << "X: " << estTranslation.X().value() << "Y: " << estTranslation.Y().value()<< "Z: " << estTranslation.Z().value() << std::endl;
+                    std::cout << "Rotation: " << estimatedPose.Rotation().ToRotation2d().Degrees().value() << std::endl;
+                    std::cout << std::endl;   
+                // Loop through requested vector, ensuring proper index
+                for(int i = 0; i < tagsRequested.size(); i++) { // Sending the estimated field coordinates of the camera 
+                    if((i == std::distance(tagsRequested.begin(), findTagTarg)) && detectedATagCoords[kNumbOfDataValuePerTag * i] == 69420) { 
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag)] = estTranslation.X().value(); 
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 1] = estTranslation.Y().value();
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 2] = estTranslation.Z().value();
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 3] = estimatedPose.Rotation().ToRotation2d().Degrees().value();
+                    }
+                }
+                // Draw boxes around tags for video feed                
                 for(int i = 0; i < 4; i++) {
                     auto point1 = tag->GetCorner(i);
                     int secondIndex = i == 3 ? 0 : i + 1;   // out of bounds adjust for last iteration
@@ -374,6 +401,15 @@ int main(int argc, char** argv)
             }
 
             testSource.PutFrame(frame); // post to stream
+            // Debug prints for nt sends
+            // for(int i = 0; i < tagsRequested.size(); i++) {
+            //     std::cout << "Tag Index " << i << std::endl;
+            //     for(int j = 0; j < kNumbOfDataValuePerTag; j++) {
+            //         double val = detectedATagCoords[(i * kNumbOfDataValuePerTag) + j];
+            //         std::cout << val << std::endl;
+            //     }
+            // }
+            table->PutNumberArray("Requested Tag Rel Coords", detectedATagCoords);
         }
     }
 }
