@@ -383,10 +383,10 @@ int main(int argc, char** argv)
                 // Loop through requested vector, ensuring proper index
                 for(int i = 0; i < tagsRequested.size(); i++) { // Sending the estimated field coordinates of the camera 
                     if((i == std::distance(tagsRequested.begin(), findTagTarg)) && detectedATagCoords[kNumbOfDataValuePerTag * i] == 69420) { 
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag)] = estTranslation.X().value(); 
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 1] = estTranslation.Y().value();
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 2] = estTranslation.Z().value();
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 3] = estimatedPose.Rotation().ToRotation2d().Degrees().value();
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag)] = transform.X().value(); 
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 1] = transform.Y().value();
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 2] = transform.Z().value();
+                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 3] = transform.Rotation().ToRotation2d().Degrees().value();
                     }
                 }
                 // Draw boxes around tags for video feed                
@@ -402,13 +402,13 @@ int main(int argc, char** argv)
 
             testSource.PutFrame(frame); // post to stream
             // Debug prints for nt sends
-            // for(int i = 0; i < tagsRequested.size(); i++) {
-            //     std::cout << "Tag Index " << i << std::endl;
-            //     for(int j = 0; j < kNumbOfDataValuePerTag; j++) {
-            //         double val = detectedATagCoords[(i * kNumbOfDataValuePerTag) + j];
-            //         std::cout << val << std::endl;
-            //     }
-            // }
+            for(int i = 0; i < tagsRequested.size(); i++) {
+                std::cout << "Tag Index " << i << std::endl;
+                for(int j = 0; j < kNumbOfDataValuePerTag; j++) {
+                    double val = detectedATagCoords[(i * kNumbOfDataValuePerTag) + j];
+                    std::cout << val << std::endl;
+                }
+            }
             table->PutNumberArray("Requested Tag Rel Coords", detectedATagCoords);
         }
     }
