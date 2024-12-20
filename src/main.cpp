@@ -252,7 +252,7 @@ int main(int argc, char** argv)
         auto info = cam.GetInfo();
         std::cout << "Camera found: " << std::endl;
         std::cout << info.path << ", " << info.name << std::endl;
-        if(info.name == "HP Wide Vision HD Camera") {
+        if(info.name == "USB2.0 HD UVC WebCam") {
             std::cout << "Test cam found!" << std::endl;
             testCam = &cam;
         }
