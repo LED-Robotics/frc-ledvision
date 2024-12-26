@@ -37,6 +37,11 @@ cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 struct Camera {
   int id = -1;
   cs::UsbCamera* ref = nullptr;
+  cs::CvSink* sink = nullptr;
+  cs::CvSource* source = nullptr;
+  cv::Mat frame{};
+  cv::Mat gray{};
+  bool validData = false;
 };
 
 struct Detection {
@@ -48,6 +53,7 @@ struct Detection {
     std::vector<float> kps = {};
 };
 
+int inferTarget = -1;
 cv::Mat inferFrame;
 json detectionJson;
 std::vector<struct Detection> detections = {};
@@ -322,121 +328,116 @@ int main(int argc, char** argv)
         std::cout << "Camera found: " << std::endl;
         std::cout << info.path << ", " << info.name << std::endl;
         cameras.push_back(Camera{info.dev, &cam});
-        if(info.name == "USB2.0 HD UVC WebCam") {
+        if(info.name == "Razer Kiyo Pro Ultra") {
             std::cout << "Test cam found!" << std::endl;
             testCam = &cam;
         }
     }
 
+    // Construct camera sink/sources
     for(Camera& cam : cameras) {
+      if(cam.ref == nullptr) continue;
       std::cout << "Cam ID: " << cam.id << std::endl;
+      cam.sink = new cs::CvSink{frc::CameraServer::GetVideo(*cam.ref)};
+      cam.source = new cs::CvSource{"source" + cam.id, camConfig};
     }
 
+    if(!cameras.size()) {
+      std::cout << "No viable cameras found!" << std::endl;
+      return 0;
+    }
+
+    inferTarget = cameras[0].id;
+
+    // Start capture on CvSources
+    // TCP ports start at 1181 
+    for(Camera& cam : cameras) {
+      frc::CameraServer::StartAutomaticCapture(*cam.source);
+    }
+    
     // NT Initialization
     auto inst = nt::NetworkTableInstance::GetDefault();
     inst.SetServerTeam(6722);
     inst.StartClient4("jetson-client");
     auto table = inst.GetTable("/jetson");
-
-    // Make sure camera was found and initialized
-    if(testCam != nullptr) {
-        cv::Mat frame, grayFrame;
-        // Setup camera stream
-        cs::CvSink testSink{frc::CameraServer::GetVideo(*testCam)};
-        cs::CvSource testSource{"testSource", camConfig};
-        frc::CameraServer::StartAutomaticCapture(testSource);
-
-        int frameTime = testSink.GrabFrameNoTimeout(frame);
-        newFrame = true;
-        inferFrame = frame.clone();
-        
-        // Spin up separate thread to request inferencing
-        std::thread inferThread([&]{
-            // Find Jetson IP and port
-            struct sockaddr_in server_addr;
-            int result = getMLServer(&server_addr);
-            // Configure socket for inference
-            int sock = getSocket(&server_addr);
-            while(true) {
-                // Do remote inference on frame
-                if(!newInference && newFrame) {
-                    newFrame = false;
-                    if(inferFrame.empty()) continue;
-                    detectionJson = remoteInference(sock, &server_addr, inferFrame);
-                    // detectionJson is a global, so data is allowed to be stale
-                    // this is so inference doesn't block AprilTag processing
-                    newInference = true;
-                }
-            }
-        });
-
+    
+    // Spin up separate thread to request inferencing
+    std::thread inferThread([&]{
+        // Find Jetson IP and port
+        struct sockaddr_in server_addr;
+        int result = getMLServer(&server_addr);
+        // Configure socket for inference
+        int sock = getSocket(&server_addr);
         while(true) {
-            int frameTime = testSink.GrabFrameNoTimeout(frame);
-            if(frame.empty()) {
-                continue;
+            // Do remote inference on frame
+            if(!newInference && newFrame) {
+                newFrame = false;
+                if(inferFrame.empty()) continue;
+                detectionJson = remoteInference(sock, &server_addr, inferFrame);
+                // detectionJson is a global, so data is allowed to be stale
+                // this is so inference doesn't block AprilTag processing
+                newInference = true;
             }
+        }
+    });
+
+    while(true) {
+      // Collect frames from cameras
+      // Done separately to try and keep cameras synced in real-time
+      for(Camera& cam : cameras) {
+        int success = cam.sink->GrabFrame(cam.frame);
+        cam.validData = !cam.frame.empty();
+        if (cam.validData) {
+          cv::cvtColor(cam.frame, cam.gray, cv::COLOR_BGR2GRAY);
+          
+          // Clone target camera frame into inference buffer
+          if(cam.id == inferTarget) {
             if(!newFrame) {
-                inferFrame = frame.clone();
+                inferFrame = cam.frame.clone();
             }
             newFrame = true;
-
-            // Fill detections array if new detections have been sent
-            // This being up-to-date is the inferThread's responsibility
-            if(newInference) {
-                constructDetections();
-            }
-
-            // Draw detections onto frame
-            drawInferenceBox(frame); 
-
-            // AprilTag detection requires grayscale
-            cv::cvtColor(frame, grayFrame, cv::COLOR_BGR2GRAY);
-
-            detectedATagCoords.clear(); 
-            for(int i = 0; i < kNumbOfDataValuePerTag * tagsRequested.size(); i++) {
-                detectedATagCoords.push_back(69420); // All values of the vector default to 69420 unless detected and requested
-            }
-
-            auto detections = frc::AprilTagDetect(detector, grayFrame);
-
-            // std::cout << detections.size() << " detections!" << std::endl;
-            for(const frc::AprilTagDetection* tag : detections) {
-                auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
-                auto findTagTarg = std::find(tagsRequested.begin(), tagsRequested.end(), tag->GetId());
-                // Print relative offset
-                    std::cout << "Requested? " << (findTagTarg != tagsRequested.end() ? "Yes" : "No") << std::endl;
-                    debugTagPrint(tag->GetId(), transform);
-                    // Print estimated field-coordinates of the camera using the tag detection
-                    /*auto realPose = GetTagPose(tag->GetId());   // actual field coordinate of tag*/
-                    /*auto estimatedPose = realPose + transform;  // wow this is so easy*/
-                    /*auto estTranslation = estimatedPose.Translation();*/
-                    /*std::cout << "Estimated Pose on Field: " << std::endl;*/
-                    /*std::cout << "X: " << estTranslation.X().value() << "Y: " << estTranslation.Y().value()<< "Z: " << estTranslation.Z().value() << std::endl;*/
-                    /*std::cout << "Rotation: " << estimatedPose.Rotation().ToRotation2d().Degrees().value() << std::endl;*/
-                    /*std::cout << std::endl;   */
-                // Loop through requested vector, ensuring proper index
-                for(int i = 0; i < tagsRequested.size(); i++) { // Sending the estimated field coordinates of the camera 
-                    if((i == std::distance(tagsRequested.begin(), findTagTarg)) && detectedATagCoords[kNumbOfDataValuePerTag * i] == 69420) { 
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag)] = transform.X().value(); 
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 1] = transform.Y().value();
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 2] = transform.Z().value();
-                        detectedATagCoords[(i * kNumbOfDataValuePerTag) + 3] = transform.Rotation().ToRotation2d().Degrees().value();
-                    }
-                }
-                // Draw box on our frame
-                drawAprilTagBox(frame, tag); 
-            }
-
-            testSource.PutFrame(frame); // post to stream
-            // Debug prints for nt sends
-            for(int i = 0; i < tagsRequested.size(); i++) {
-                /*std::cout << "Tag Index " << i << std::endl;*/
-                for(int j = 0; j < kNumbOfDataValuePerTag; j++) {
-                    double val = detectedATagCoords[(i * kNumbOfDataValuePerTag) + j];
-                    /*std::cout << val << std::endl;*/
-                }
-            }
-            /*table->PutNumberArray("Requested Tag Rel Coords", detectedATagCoords);*/
+          }
         }
+      }
+
+      // Fill detections array if new detections have been sent
+      // This being up-to-date is the inferThread's responsibility
+      if(newInference) {
+        constructDetections();
+      }
+
+      // Main AprilTag processing loop. Done once per camera
+      for(Camera& cam : cameras) {
+        if(!cam.validData) continue;
+        
+        // Draw detections onto frame
+        if(cam.id == inferTarget) {
+          drawInferenceBox(cam.frame);
+        }
+
+        detectedATagCoords.clear(); 
+        for(int i = 0; i < kNumbOfDataValuePerTag * tagsRequested.size(); i++) {
+            detectedATagCoords.push_back(69420); // All values of the vector default to 69420 unless detected and requested
+        }
+        
+        auto detections = std::move(frc::AprilTagDetect(detector, cam.gray));
+
+        for(const frc::AprilTagDetection* tag : detections) {
+          auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
+          auto findTagTarg = std::find(tagsRequested.begin(), tagsRequested.end(), tag->GetId());
+          // Print relative offset
+          std::cout << "Requested? " << (findTagTarg != tagsRequested.end() ? "Yes" : "No") << std::endl;
+          debugTagPrint(tag->GetId(), transform);
+          
+          // Draw box on our frame
+          drawAprilTagBox(cam.frame, tag); 
+        }
+      }
+
+      // Write frames to publishing source
+      // Done separately because synced web streams are nice
+      for(Camera& cam : cameras) {
+        if(cam.validData) cam.source->PutFrame(cam.frame);
+      }
     }
 }
