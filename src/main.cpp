@@ -64,10 +64,6 @@ std::vector<std::string> classes = {"label", "x", "y", "width", "height"};
 // AprilTag detection objects
 AprilTagDetector detector{};
 AprilTagPoseEstimator estimator{{140_mm, (double)width, (double)height, (double)width/2, (double)height/2}};  // dummy numbers
-auto tagLayout = AprilTagFieldLayout::LoadField(AprilTagField::k2024Crescendo);
-const int kNumbOfDataValuePerTag = 4;
-std::vector<double> detectedATagCoords = {};
-std::vector<uint8_t> tagsRequested = {1, 7, 12, 18};
 
 // Signature for Jetson comms
 const uchar udpSignature[] = {0x5b, 0x20, 0xc4, 0x10};
@@ -209,17 +205,13 @@ json remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame) {
     return {};
 }
 
-void printCoordinates(int id) {
-    auto idSearch = tagLayout.GetTagPose(id);
-    if(idSearch.has_value()) {  // ensure tag ID exists in our field coordinate system
-        auto tag = idSearch.value();
-        auto tagTranslation = tag.Translation();
-        std::cout << "Tag " << id << " Pose:" << std::endl;
-        std::cout << "X: " << tagTranslation.X().value() << "Y: " << tagTranslation.Y().value()<< "Z: " << tagTranslation.Z().value() << std::endl;
-        std::cout << "Rotation: " << tag.Rotation().ToRotation2d().Degrees().value() << std::endl;
-    } else {
-        std::cout << "Tag with id " << id << " was not found" << std::endl;
-    }
+void initAprilTagDetector() {
+    // Configure AprilTag detector
+    detector.AddFamily("tag36h11");
+    detector.SetConfig({});
+    auto quadParams = detector.GetQuadThresholdParameters();
+    quadParams.minClusterPixels = 3;
+    detector.SetQuadThresholdParameters(quadParams);
 }
 
 void debugTagPrint(int id, Transform3d transform) {
@@ -229,17 +221,6 @@ void debugTagPrint(int id, Transform3d transform) {
     std::cout << " Z Off: " << units::foot_t{transform.Z()}.value() << std::endl;
     std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
     std::cout << std::endl;
-}
-
-Pose3d GetTagPose(int id) {
-    auto idSearch = tagLayout.GetTagPose(id);
-    if(idSearch.has_value()) {  // ensure tag ID exists in our field coordinate system
-        auto tagPose = idSearch.value();
-        return tagPose;
-    } else {
-        std::cout << "Tag with id " << id << " was not found" << std::endl;
-        return {};
-    }
 }
 
 // Init and return all cameras plugged in
@@ -311,27 +292,17 @@ void drawInferenceBox(cv::Mat frame) {
 }
 
 int main(int argc, char** argv)
-{   
-    // Configure AprilTag detector
-    detector.AddFamily("tag36h11");
-    detector.SetConfig({});
-    auto quadParams = detector.GetQuadThresholdParameters();
-    quadParams.minClusterPixels = 3;
-    detector.SetQuadThresholdParameters(quadParams);
-    tagLayout.SetOrigin(AprilTagFieldLayout::OriginPosition::kBlueAllianceWallRightSide);
+{  
+    // Initialize AprilTag detector
+    initAprilTagDetector();
     // Initialize cameras
     auto rawCameras = initCameras(camConfig);
     std::vector<Camera> cameras;
-    cs::UsbCamera* testCam = nullptr;
     for(cs::UsbCamera& cam : rawCameras) {
         auto info = cam.GetInfo();
         std::cout << "Camera found: " << std::endl;
         std::cout << info.path << ", " << info.name << std::endl;
         cameras.push_back(Camera{info.dev, &cam});
-        if(info.name == "Razer Kiyo Pro Ultra") {
-            std::cout << "Test cam found!" << std::endl;
-            testCam = &cam;
-        }
     }
 
     // Construct camera sink/sources
@@ -414,19 +385,12 @@ int main(int argc, char** argv)
         if(cam.id == inferTarget) {
           drawInferenceBox(cam.frame);
         }
-
-        detectedATagCoords.clear(); 
-        for(int i = 0; i < kNumbOfDataValuePerTag * tagsRequested.size(); i++) {
-            detectedATagCoords.push_back(69420); // All values of the vector default to 69420 unless detected and requested
-        }
         
-        auto detections = std::move(frc::AprilTagDetect(detector, cam.gray));
+        auto detections = frc::AprilTagDetect(detector, cam.gray);
 
         for(const frc::AprilTagDetection* tag : detections) {
           auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
-          auto findTagTarg = std::find(tagsRequested.begin(), tagsRequested.end(), tag->GetId());
           // Print relative offset
-          std::cout << "Requested? " << (findTagTarg != tagsRequested.end() ? "Yes" : "No") << std::endl;
           debugTagPrint(tag->GetId(), transform);
           
           // Draw box on our frame
