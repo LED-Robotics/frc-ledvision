@@ -97,6 +97,8 @@ int getMLServer(struct sockaddr_in *server_address) {
     memcpy(&request[4], discoverSignature, 2);
     int sock;
     int yes = 1;
+    struct timeval timeout;
+    timeout.tv_usec = 1000000;
     struct sockaddr_in broadcast_addr;
     struct sockaddr_in server_addr;
     socklen_t addr_len;
@@ -127,17 +129,16 @@ int getMLServer(struct sockaddr_in *server_address) {
 
     FD_ZERO(&readfd);
     FD_SET(sock, &readfd);
-    ret = select(sock + 1, &readfd, NULL, NULL, NULL);
+    ret = select(sock + 1, &readfd, NULL, NULL, &timeout);
+    if (!ret) return 0;
     while(memcmp(buffer, request, sizeof(request))) {
-        if (ret > 0) {
-            if (FD_ISSET(sock, &readfd)) {
-                count = recvfrom(sock, buffer, 1024, 0, (struct sockaddr*)&server_addr, &addr_len);
-                    server_address->sin_family = server_addr.sin_family;
-                    server_address->sin_addr = server_addr.sin_addr;
-                    server_address->sin_port = server_addr.sin_port;
-            }
+        if (FD_ISSET(sock, &readfd)) {
+            count = recvfrom(sock, buffer, 1024, 0, (struct sockaddr*)&server_addr, &addr_len);
+            server_address->sin_family = server_addr.sin_family;
+            server_address->sin_addr = server_addr.sin_addr;
+            server_address->sin_port = server_addr.sin_port;
         }
-    }
+    } 
 
     return 1;
 }
@@ -336,7 +337,10 @@ int main(int argc, char** argv)
     std::thread inferThread([&]{
         // Find Jetson IP and port
         struct sockaddr_in server_addr;
-        int result = getMLServer(&server_addr);
+        int result = 0;
+        while(result != 1) {
+          result = getMLServer(&server_addr);
+        }
         // Configure socket for inference
         int sock = getSocket(&server_addr);
         while(true) {
