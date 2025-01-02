@@ -34,13 +34,19 @@ int width = 640;
 int height = 640;
 cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 
+std::vector<uint8_t> targetTags;
+uint8_t targetCount = 0;
+uint8_t *tagBuffer;
+uint8_t tagBufSize = 0;
+
 struct Camera {
-  int id = -1;
+  uint8_t id = -1;
   cs::UsbCamera* ref = nullptr;
   cs::CvSink* sink = nullptr;
   cs::CvSource* source = nullptr;
   cv::Mat frame{};
   cv::Mat gray{};
+  unsigned long captureTime = 0;
   bool validData = false;
 };
 
@@ -51,6 +57,24 @@ struct Detection {
     double width = 0;
     double height = 0;
     std::vector<float> kps = {};
+};
+
+struct AprilTagFrame {
+  uint8_t tagId = -1;
+  uint8_t camId = -1;
+  unsigned long timeCaptured;
+  double tx;
+  double ty;
+  double tz;
+  double rx;
+  double ry;
+  double rz;
+};
+
+const uint8_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
+
+struct GlobalFrame {
+  
 };
 
 int inferTarget = -1;
@@ -303,7 +327,7 @@ int main(int argc, char** argv)
         auto info = cam.GetInfo();
         std::cout << "Camera found: " << std::endl;
         std::cout << info.path << ", " << info.name << std::endl;
-        cameras.push_back(Camera{info.dev, &cam});
+        cameras.push_back(Camera{(uint8_t)info.dev, &cam});
     }
 
     // Construct camera sink/sources
@@ -356,7 +380,27 @@ int main(int argc, char** argv)
         }
     });
 
+    /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
+
     while(true) {
+      // TEST TARGET TAGS
+      targetTags.clear();
+      targetTags.insert(targetTags.end(), {3, 7, 1});
+      // reallocate buffer if size changed
+      uint8_t currentSize = targetTags.size();
+      if(targetCount != currentSize) {
+        std::cout << "Size of buffer changed!" << std::endl;
+        free(tagBuffer);
+        tagBufSize = sizeof(GlobalFrame) + (TAG_FRAME_SIZE * currentSize * cameras.size());
+        tagBuffer = (uint8_t*)malloc(tagBufSize);
+      }
+      targetCount = currentSize;
+      // Debug printout
+      /*for(uint8_t& id : targetTags) {*/
+      /*  std::cout << (int)id << ' ';*/
+      /*}*/
+      /*std::cout << std::endl;*/
+      
       // Collect frames from cameras
       // Done separately to try and keep cameras synced in real-time
       for(Camera& cam : cameras) {
@@ -380,6 +424,9 @@ int main(int argc, char** argv)
       if(newInference) {
         constructDetections();
       }
+      
+      uint8_t tagBufPos = 0;
+      tagBufPos += sizeof(GlobalFrame);
 
       // Main AprilTag processing loop. Done once per camera
       for(Camera& cam : cameras) {
@@ -393,14 +440,40 @@ int main(int argc, char** argv)
         auto detections = frc::AprilTagDetect(detector, cam.gray);
 
         for(const frc::AprilTagDetection* tag : detections) {
+          uint8_t id = tag->GetId();
+          uint8_t found = count(targetTags.begin(), targetTags.end(), id);
+          if(!found) continue;  // tag not in request array, skip
+          if(tagBufPos + sizeof(AprilTagFrame) > tagBufSize) continue; // whoopsie, this would overflow, skip
           auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
+          
+          // Data to get shoved into buffer
+          AprilTagFrame frame{
+            id, 
+            cam.id,
+            cam.captureTime,
+            transform.X().value(),
+            transform.Y().value(),
+            transform.Z().value(),
+            units::degree_t{transform.Rotation().X()}.value(),
+            units::degree_t{transform.Rotation().Y()}.value(),
+            units::degree_t{transform.Rotation().Z()}.value()
+          };
+          
+          // copy into buffer and increment counter
+          memcpy(tagBuffer + tagBufPos, &frame, TAG_FRAME_SIZE);
+          tagBufPos += TAG_FRAME_SIZE;
+
           // Print relative offset
-          debugTagPrint(tag->GetId(), transform);
+          debugTagPrint(id, transform);
           
           // Draw box on our frame
-          drawAprilTagBox(cam.frame, tag); 
+          drawAprilTagBox(cam.frame, tag);
         }
       }
+
+      // Post tag buffer to NT
+      std::vector<uint8_t> tagBuf(tagBuffer, tagBuffer + tagBufPos);
+      table->PutRaw("tagBuf", tagBuf);
 
       // Write frames to publishing source
       // Done separately because synced web streams are nice
