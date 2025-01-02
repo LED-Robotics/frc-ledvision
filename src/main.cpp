@@ -403,10 +403,22 @@ int main(int argc, char** argv)
       
       // Collect frames from cameras
       // Done separately to try and keep cameras synced in real-time
+         // Get the current time from the system clock
+      auto now = std::chrono::system_clock::now();
+
+      // Convert the current time to time since epoch
+      auto duration = now.time_since_epoch();
+
+      // Convert duration to milliseconds
+      unsigned long milliseconds
+          = std::chrono::duration_cast<std::chrono::milliseconds>(
+                duration)
+                .count();
       for(Camera& cam : cameras) {
-        int success = cam.sink->GrabFrame(cam.frame);
+        auto success = cam.sink->GrabFrame(cam.frame);
         cam.validData = !cam.frame.empty();
         if (cam.validData) {
+          cam.captureTime = milliseconds + success;
           cv::cvtColor(cam.frame, cam.gray, cv::COLOR_BGR2GRAY);
           
           // Clone target camera frame into inference buffer
