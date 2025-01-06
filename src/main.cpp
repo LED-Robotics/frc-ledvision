@@ -82,7 +82,7 @@ const uint8_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
 
 // Global data to send in the AprilTag frame
 struct GlobalFrame {
-  // Placeholder
+  uint8_t size[2];
 };
 
 // Machine Learning inference variables
@@ -453,6 +453,7 @@ int main(int argc, char** argv)
       }
       
       uint8_t tagBufPos = 0;
+      GlobalFrame frameGlobal;
       tagBufPos += sizeof(GlobalFrame);
 
       // Main AprilTag processing loop. Done once per camera
@@ -487,8 +488,9 @@ int main(int argc, char** argv)
           };
           
           // copy into buffer and increment counter
-          memcpy(tagBuffer + tagBufPos, &frame, TAG_FRAME_SIZE);
-          tagBufPos += TAG_FRAME_SIZE;
+          memset(tagBuffer + tagBufPos, 0x69, 2);
+          memcpy(tagBuffer + tagBufPos + 2, &frame, TAG_FRAME_SIZE);
+          tagBufPos += 2 + TAG_FRAME_SIZE;
 
           // Print relative offset
           debugTagPrint(id, transform);
@@ -497,6 +499,9 @@ int main(int argc, char** argv)
           drawAprilTagBox(cam.frame, tag);
         }
       }
+
+      frameGlobal.size[0] = tagBufPos & 0x00ff;
+      frameGlobal.size[1] = (tagBufPos & 0xff00) >> 8;
 
       // Post tag buffer to NT
       std::vector<uint8_t> tagBuf(tagBuffer, tagBuffer + tagBufPos);
