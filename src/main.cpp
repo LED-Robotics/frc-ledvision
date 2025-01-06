@@ -502,6 +502,7 @@ int main(int argc, char** argv)
 
       frameGlobal.size[0] = tagBufPos & 0x00ff;
       frameGlobal.size[1] = (tagBufPos & 0xff00) >> 8;
+      memcpy(tagBuffer, &frameGlobal, sizeof(GlobalFrame));
 
       // Post tag buffer to NT
       std::vector<uint8_t> tagBuf(tagBuffer, tagBuffer + tagBufPos);
