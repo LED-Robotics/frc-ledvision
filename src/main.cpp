@@ -34,11 +34,16 @@ int width = 640;
 int height = 640;
 cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 
+// To store IDs of current valid cameras
+std::vector<uint8_t> currentCams;
+
+// Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
 uint8_t targetCount = 0;
 uint8_t *tagBuffer;
 uint8_t tagBufSize = 0;
 
+// Container for individual camera data
 struct Camera {
   uint8_t id = -1;
   cs::UsbCamera* ref = nullptr;
@@ -50,6 +55,7 @@ struct Camera {
   bool validData = false;
 };
 
+// Representation of an ML detection
 struct Detection {
     int label = -1;
     double x = 0;
@@ -59,6 +65,7 @@ struct Detection {
     std::vector<float> kps = {};
 };
 
+// Struct format for AprilTag detection
 struct AprilTagFrame {
   uint8_t tagId = -1;
   uint8_t camId = -1;
@@ -73,10 +80,12 @@ struct AprilTagFrame {
 
 const uint8_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
 
+// Global data to send in the AprilTag frame
 struct GlobalFrame {
-  
+  // Placeholder
 };
 
+// Machine Learning inference variables
 int inferTarget = -1;
 cv::Mat inferFrame;
 json detectionJson;
@@ -97,6 +106,7 @@ const int MaxDatagram = 32768;
 uchar request[MaxDatagram];
 uchar response[32768];
 
+// Return a page id for a configured network socket
 int getSocket(struct sockaddr_in *server_addr) {
     int sock = -1;
     int yes = 1;
@@ -230,6 +240,7 @@ json remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame) {
     return {};
 }
 
+// Configure AprilTag detection parameters
 void initAprilTagDetector() {
     // Configure AprilTag detector
     detector.AddFamily("tag36h11");
@@ -239,6 +250,7 @@ void initAprilTagDetector() {
     detector.SetQuadThresholdParameters(quadParams);
 }
 
+// Print coordinates Transform3d
 void debugTagPrint(int id, Transform3d transform) {
     std::cout << "Tag " << id << " Pose Estimation:" << std::endl;
     std::cout << "X Off: " << units::foot_t{transform.X()}.value();
@@ -262,6 +274,7 @@ std::vector<cs::UsbCamera> initCameras(cs::VideoMode config) {
     return cameras;
 }
 
+// Draw AprilTag outline onto provided frame
 void drawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag) {
   // Draw boxes around tags for video feed                
   for(int i = 0; i < 4; i++) {
@@ -274,6 +287,7 @@ void drawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag) {
   }
 }
 
+// Turn current global detection JSON into Detections 
 void constructDetections() {
   detections.clear();
   for (auto& detection : detectionJson) {
@@ -305,6 +319,7 @@ void constructDetections() {
   newInference = false;
 }
 
+// Draw ML inference outlines onto provided frame
 void drawInferenceBox(cv::Mat frame) {
   for (auto& detection : detections) {
       cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
