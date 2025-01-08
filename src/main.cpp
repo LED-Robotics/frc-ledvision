@@ -155,7 +155,7 @@ int getMLServer(struct sockaddr_in *server_address) {
     memset((void*)&broadcast_addr, 0, addr_len);
     broadcast_addr.sin_family = AF_INET;
     broadcast_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-    broadcast_addr.sin_port = htons(5555);
+    broadcast_addr.sin_port = htons(5800);
 
     ret = sendto(sock, request, sizeof(request), 0, (struct sockaddr*) &broadcast_addr, addr_len);
 
