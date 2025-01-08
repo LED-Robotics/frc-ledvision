@@ -66,24 +66,6 @@ RUN cmake --build . --target install
 
 USER runner
 
-COPY ./json /home/runner/deps/json
-
-USER root
-
-RUN chown -R runner:runner /home/runner/deps/json
-
-WORKDIR /home/runner/deps/json/
-
-RUN cmake .
-
-RUN make -j4
-
-USER root
-
-RUN cmake --build . --target install
-
-USER runner
-
 WORKDIR /home/runner
 
 # Install NodeJS

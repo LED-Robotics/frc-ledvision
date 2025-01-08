@@ -4,6 +4,3 @@
 [submodule "docker/opencv"]
 	path = docker/opencv
 	url = git@github.com:opencv/opencv.git
-[submodule "docker/json"]
-	path = docker/json
-	url = git@github.com:nlohmann/json.git
