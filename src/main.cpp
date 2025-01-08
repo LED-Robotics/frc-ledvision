@@ -42,19 +42,7 @@ std::vector<uint8_t> targetTags;
 uint8_t targetCount = 0;
 uint8_t *tagBuffer;
 uint8_t tagBufSize = 0;
-
-// Container for individual camera data
-struct Camera {
-  uint8_t id = -1;
-  cs::UsbCamera* ref = nullptr;
-  cs::CvSink* sink = nullptr;
-  cs::CvSource* source = nullptr;
-  cv::Mat frame{};
-  cv::Mat gray{};
-  unsigned long captureTime = 0;
-  bool validData = false;
-};
-
+ 
 // Representation of an ML detection
 struct Detection {
     int label = -1;
@@ -64,6 +52,24 @@ struct Detection {
     double height = 0;
     std::vector<float> kps = {};
 };
+
+// Container for individual camera data
+struct Camera {
+  uint8_t id = -1;
+  cs::UsbCamera* ref = nullptr;
+  cs::CvSink* sink = nullptr;
+  cs::CvSource* source = nullptr;
+  cv::Mat frame{};
+  cv::Mat gray{};
+  cv::Mat inferFrame{};
+  bool newFrame = false;
+  bool newInference = false;
+  std::vector<Detection> detections;
+  unsigned long captureTime = 0;
+  bool validData = false;
+};
+
+std::vector<Camera> cameras; // Global camera references
 
 // Struct format for AprilTag detection
 struct AprilTagFrame {
@@ -186,6 +192,7 @@ int sendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int r
     addr_len = sizeof(struct sockaddr_in);
     struct timeval timeout;
     timeout.tv_usec = 500000;
+    timeout.tv_sec = 0;
 
     ret = sendto(sock, req_buf, reqSize, 0, (struct sockaddr*) server_addr, addr_len);
     FD_ZERO(&readfd);
@@ -288,7 +295,7 @@ void drawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag) {
 }
 
 // Turn current global detection JSON into Detections 
-void constructDetections() {
+void constructDetections(json detectionJson, std::vector<Detection> &detections) {
   detections.clear();
   for (auto& detection : detectionJson) {
   // std::cout << detection << std::endl;
@@ -320,7 +327,7 @@ void constructDetections() {
 }
 
 // Draw ML inference outlines onto provided frame
-void drawInferenceBox(cv::Mat frame) {
+void drawInferenceBox(std::vector<Detection> &detections, cv::Mat frame) {
   for (auto& detection : detections) {
       cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
       cv::rectangle(frame, rect, cv::Scalar(255, 0, 0), 2, cv::LINE_4);
@@ -337,7 +344,6 @@ int main(int argc, char** argv)
     initAprilTagDetector();
     // Initialize cameras
     auto rawCameras = initCameras(camConfig);
-    std::vector<Camera> cameras;
     for(cs::UsbCamera& cam : rawCameras) {
         auto info = cam.GetInfo();
         std::cout << "Camera found: " << std::endl;
@@ -383,15 +389,25 @@ int main(int argc, char** argv)
         // Configure socket for inference
         int sock = getSocket(&server_addr);
         while(true) {
-            // Do remote inference on frame
-            if(!newInference && newFrame) {
-                newFrame = false;
-                if(inferFrame.empty()) continue;
-                detectionJson = remoteInference(sock, &server_addr, inferFrame);
-                // detectionJson is a global, so data is allowed to be stale
-                // this is so inference doesn't block AprilTag processing
-                newInference = true;
+
+            for(Camera& cam : cameras) {
+              if(!cam.newInference && cam.newFrame) {
+                cam.newFrame = false;
+                if(cam.inferFrame.empty()) continue;
+                auto detectionJson = remoteInference(sock, &server_addr, cam.inferFrame);
+                constructDetections(detectionJson, cam.detections);
+              }
             }
+
+            // Do remote inference on frame
+            /*if(!newInference && newFrame) {*/
+            /*    newFrame = false;*/
+            /*    if(inferFrame.empty()) continue;*/
+            /*    detectionJson = remoteInference(sock, &server_addr, inferFrame);*/
+            /*    // detectionJson is a global, so data is allowed to be stale*/
+            /*    // this is so inference doesn't block AprilTag processing*/
+            /*    newInference = true;*/
+            /*}*/
         }
     });
 
@@ -437,20 +453,20 @@ int main(int argc, char** argv)
           cv::cvtColor(cam.frame, cam.gray, cv::COLOR_BGR2GRAY);
           
           // Clone target camera frame into inference buffer
-          if(cam.id == inferTarget) {
-            if(!newFrame) {
-                inferFrame = cam.frame.clone();
+          /*if(cam.id == inferTarget) {*/
+            if(!cam.newFrame) {
+                cam.inferFrame = cam.frame.clone();
             }
-            newFrame = true;
-          }
+            cam.newFrame = true;
+          /*}*/
         }
       }
 
       // Fill detections array if new detections have been sent
       // This being up-to-date is the inferThread's responsibility
-      if(newInference) {
-        constructDetections();
-      }
+      /*if(newInference) {*/
+      /*  constructDetections(detectionJson, detections);*/
+      /*}*/
       
       uint8_t tagBufPos = 0;
       GlobalFrame frameGlobal;
@@ -461,9 +477,9 @@ int main(int argc, char** argv)
         if(!cam.validData) continue;
         
         // Draw detections onto frame
-        if(cam.id == inferTarget) {
-          drawInferenceBox(cam.frame);
-        }
+        /*if(cam.id == inferTarget) {*/
+        drawInferenceBox(cam.detections, cam.frame);
+        /*}*/
         
         auto detections = frc::AprilTagDetect(detector, cam.gray);
 
