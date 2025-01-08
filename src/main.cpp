@@ -25,8 +25,6 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp> 
 
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
 using namespace frc;
 
 // Camera resolution/format configs
@@ -45,12 +43,12 @@ uint8_t tagBufSize = 0;
  
 // Representation of an ML detection
 struct Detection {
-    int label = -1;
+    uint8_t label = 0;
     double x = 0;
     double y = 0;
     double width = 0;
     double height = 0;
-    std::vector<float> kps = {};
+    std::vector<double> kps = {};
 };
 
 // Container for individual camera data
@@ -93,12 +91,6 @@ struct GlobalFrame {
 
 // Machine Learning inference variables
 int inferTarget = -1;
-cv::Mat inferFrame;
-json detectionJson;
-std::vector<struct Detection> detections = {};
-bool newInference = false;
-bool newFrame = false;
-std::vector<std::string> classes = {"label", "x", "y", "width", "height"};
 
 // AprilTag detection objects
 AprilTagDetector detector{};
@@ -205,8 +197,40 @@ int sendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int r
     }
     return 1;
 }
+
+// Turn current buffer into a Detection
+Detection constructDetection(uchar *buf) {
+    Detection det{};
+    det.label = (int)buf[2];
+    double *temp;
+    temp = (double*)(buf+3);
+    det.x = *temp;
+    temp++;
+    det.y = *temp;
+    temp++;
+    det.width = *temp;
+    temp++;
+    det.height = *temp;
+    temp++;
+
+    uchar* kpsTemp = (uchar*)temp;
+    uchar kpsLenHigh = *kpsTemp;
+    kpsTemp++;
+    uchar kpsLenLow = *kpsTemp;
+    unsigned int kpsLen = (kpsLenHigh << 8) + kpsLenLow;
+    kpsTemp++;
+    temp = (double*)kpsTemp;
+
+    for(int i = 0; i < kpsLen; i += 8) {
+      det.kps.push_back(*temp);
+      temp++;
+    }
+
+    return det;
+}
+
 // Request inferencing on a frame
-json remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame) {
+std::vector<Detection> remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame) {
     // Create message header buffer
     const uchar inferSignature[] = {0xe2, 0x4d};
     uchar header[sizeof(udpSignature) + sizeof(inferSignature)];
@@ -237,11 +261,38 @@ json remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame) {
         uchar sizeHigh = response[sizeof(header)];
         uchar sizeLow = response[sizeof(header) + 1];
         unsigned int size = (sizeHigh << 8) + sizeLow;
-        if(size && size < sizeof(response)) {   // Valid JSON is present
-            std::string jsonString(reinterpret_cast<char*>(response + sizeof(header) + 2), size);
-            // std::cout << jsonString << std::endl;
-            json detections = json::parse(jsonString);
-            return detections;
+        if(size && size < sizeof(response)) {   // Valid data is present
+            uchar detectionsHigh = response[sizeof(header)+2];
+            uchar detectionsLow = response[sizeof(header) + 3];
+            unsigned int totalDetections = (detectionsHigh << 8) + detectionsLow;
+            /*std::cout << "Detections: " << totalDetections << std::endl;*/
+            if(totalDetections) {
+              
+
+              uchar *start = response + sizeof(header) + 4;
+              std::vector<Detection> detections;
+              for(int i = 0; i < totalDetections; i++) {
+                auto current = constructDetection(start);
+                detections.push_back(current);
+
+                uchar lenHigh = start[0];
+                uchar lenLow = start[1];
+                unsigned int len = (lenHigh << 8) + lenLow;
+                start += len;
+                /*std::cout << "Detection packet length: " << len << std::endl;*/
+                /*std::cout << "Index: " << i << std::endl;*/
+                /*std::cout << "Label: " << (int)current.label << std::endl;*/
+                /*std::cout << "X: " << current.x << std::endl;*/
+                /*std::cout << "Y: " << current.y << std::endl;*/
+                /*std::cout << "Width: " << current.width << std::endl;*/
+                /*std::cout << "Height: " << current.height << std::endl;*/
+                /*std::cout << std::endl;*/
+              }
+              /*std::cout << "Detections created: " << detections.size() << std::endl;*/
+              /*std::cout << std::endl;*/
+              /*std::cout << std::endl;*/
+              return detections;
+            }
         }
     }
     return {};
@@ -292,38 +343,6 @@ void drawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag) {
       cv::Point lineEnd{(int)point2.x, (int)point2.y};
       cv::line(frame, lineStart, lineEnd, cv::Scalar(0, 0, 255), 2, cv::LINE_4);
   }
-}
-
-// Turn current global detection JSON into Detections 
-void constructDetections(json detectionJson, std::vector<Detection> &detections) {
-  detections.clear();
-  for (auto& detection : detectionJson) {
-  // std::cout << detection << std::endl;
-      for(auto& jsonClass : classes) {
-          if(!detection.contains(jsonClass))
-              continue;
-      }
-      int label = detection["label"];
-      if(label != 0) continue;    // only box notes
-      double x = detection["x"];
-      double y = detection["y"];
-      double width = detection["width"];
-      double height = detection["height"];
-      if(detection.contains("kps")) {
-        std::vector<float> kps;
-        auto points = detection["kps"];
-        for(auto& point : points) {
-          kps.push_back(point["x"]);
-          kps.push_back(point["y"]);
-          kps.push_back(point["s"]);
-          detections.push_back({label, x, y, width, height, kps});
-        }
-      } else {
-        detections.push_back({label, x, y, width, height});
-      }
-  }
-  // std::cout << std::endl;
-  newInference = false;
 }
 
 // Draw ML inference outlines onto provided frame
@@ -394,20 +413,9 @@ int main(int argc, char** argv)
               if(!cam.newInference && cam.newFrame) {
                 cam.newFrame = false;
                 if(cam.inferFrame.empty()) continue;
-                auto detectionJson = remoteInference(sock, &server_addr, cam.inferFrame);
-                constructDetections(detectionJson, cam.detections);
+                cam.detections = remoteInference(sock, &server_addr, cam.inferFrame);
               }
             }
-
-            // Do remote inference on frame
-            /*if(!newInference && newFrame) {*/
-            /*    newFrame = false;*/
-            /*    if(inferFrame.empty()) continue;*/
-            /*    detectionJson = remoteInference(sock, &server_addr, inferFrame);*/
-            /*    // detectionJson is a global, so data is allowed to be stale*/
-            /*    // this is so inference doesn't block AprilTag processing*/
-            /*    newInference = true;*/
-            /*}*/
         }
     });
 
