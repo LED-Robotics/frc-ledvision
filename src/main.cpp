@@ -63,7 +63,8 @@ struct Camera {
   bool newFrame = false;
   bool newInference = false;
   std::vector<Detection> detections;
-  unsigned long captureTime = 0;
+  uint32_t captureTime = 0;
+  unsigned long lastFail = 0;
   bool validData = false;
 };
 
@@ -73,7 +74,7 @@ std::vector<Camera> cameras; // Global camera references
 struct AprilTagFrame {
   uint8_t tagId = -1;
   uint8_t camId = -1;
-  unsigned long timeCaptured;
+  uint32_t timeCaptured;
   double tx;
   double ty;
   double tz;
@@ -82,7 +83,7 @@ struct AprilTagFrame {
   double rz;
 };
 
-const uint8_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
+const size_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
 
 // Global data to send in the AprilTag frame
 struct GlobalFrame {
@@ -311,9 +312,9 @@ void initAprilTagDetector() {
 // Print coordinates Transform3d
 void debugTagPrint(int id, Transform3d transform) {
     std::cout << "Tag " << id << " Pose Estimation:" << std::endl;
-    std::cout << "X Off: " << units::foot_t{transform.X()}.value();
-    std::cout << " Y Off: " << units::foot_t{transform.Y()}.value();
-    std::cout << " Z Off: " << units::foot_t{transform.Z()}.value() << std::endl;
+    std::cout << "X Off: " << transform.X().value();
+    std::cout << " Y Off: " << transform.Y().value();
+    std::cout << " Z Off: " << transform.Z().value() << std::endl;
     std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
     std::cout << std::endl;
 }
@@ -374,7 +375,7 @@ int main(int argc, char** argv)
     // Construct camera sink/sources
     for(Camera& cam : cameras) {
       if(cam.ref == nullptr) continue;
-      std::cout << "Cam ID: " << cam.id << std::endl;
+      std::cout << "Cam ID: " << (int)cam.id << std::endl;
       cam.sink = new cs::CvSink{frc::CameraServer::GetVideo(*cam.ref)};
       cam.source = new cs::CvSource{"source" + cam.id, camConfig};
     }
@@ -457,8 +458,16 @@ int main(int argc, char** argv)
                 duration)
                 .count();
       for(Camera& cam : cameras) {
+        if(cam.lastFail && milliseconds - cam.lastFail < 3000) {
+          continue;
+        }
         auto success = cam.sink->GrabFrame(cam.frame);
-        cam.validData = !cam.frame.empty();
+        if(!success) {
+          cam.lastFail = milliseconds;
+        } else {
+          cam.lastFail = 0;
+        }
+        cam.validData = !cam.lastFail && !cam.frame.empty();
         if (cam.validData) {
           cam.captureTime = milliseconds + success;
           cv::cvtColor(cam.frame, cam.gray, cv::COLOR_BGR2GRAY);
@@ -499,11 +508,11 @@ int main(int argc, char** argv)
 
           uint8_t found = count(targetTags.begin(), targetTags.end(), id);
           if(!found) continue;  // tag not in request array, skip
-          if(tagBufPos + sizeof(AprilTagFrame) > tagBufSize) continue; // whoopsie, this would overflow, skip
+          if(tagBufPos + TAG_FRAME_SIZE > tagBufSize) continue; // whoopsie, this would overflow, skip
           auto transform = estimator.Estimate(*tag);  // Estimate Transform3d relative to camera
           
           // Data to get shoved into buffer
-          AprilTagFrame frame{
+          AprilTagFrame frame {
             id, 
             cam.id,
             cam.captureTime,
