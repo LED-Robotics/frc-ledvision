@@ -37,7 +37,7 @@ std::vector<uint8_t> currentCams;
 
 // Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
-uint8_t targetCount = 0;
+uint8_t targetCount = -1;
 uint8_t *tagBuffer;
 uint8_t tagBufSize = 0;
  
@@ -59,7 +59,7 @@ struct Camera {
   cs::CvSource* source = nullptr;
   cv::Mat frame{};
   cv::Mat gray{};
-  cv::Mat inferFrame{};
+  cv::Mat labelledFrame{};
   bool newFrame = false;
   bool newInference = false;
   std::vector<Detection> detections;
@@ -349,7 +349,8 @@ void drawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag) {
 void drawInferenceBox(std::vector<Detection> &detections, cv::Mat frame) {
   for (auto& detection : detections) {
       cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
-      cv::rectangle(frame, rect, cv::Scalar(255, 0, 0), 2, cv::LINE_4);
+      auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
+      cv::rectangle(frame, rect, color, 2, cv::LINE_4);
       for(int i = 0; i < detection.kps.size(); i += 3) {
         cv::Point center(detection.kps[i], detection.kps[i+1]);
         cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
@@ -412,8 +413,8 @@ int main(int argc, char** argv)
             for(Camera& cam : cameras) {
               if(!cam.newInference && cam.newFrame) {
                 cam.newFrame = false;
-                if(cam.inferFrame.empty()) continue;
-                cam.detections = remoteInference(sock, &server_addr, cam.inferFrame);
+                if(cam.frame.empty()) continue;
+                cam.detections = remoteInference(sock, &server_addr, cam.frame);
               }
             }
         }
@@ -423,18 +424,20 @@ int main(int argc, char** argv)
 
     while(true) {
       // TEST TARGET TAGS
+      auto requestedTags = table->GetRaw("rqsted", targetTags);
       targetTags.clear();
-      targetTags.insert(targetTags.end(), {3, 7, 1});
+      targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
       // reallocate buffer if size changed
       uint8_t currentSize = targetTags.size();
       if(targetCount != currentSize) {
-        std::cout << "Size of buffer changed!" << std::endl;
         free(tagBuffer);
         tagBufSize = sizeof(GlobalFrame) + (TAG_FRAME_SIZE * currentSize * cameras.size());
         tagBuffer = (uint8_t*)malloc(tagBufSize);
+        /*std::cout << "Size of buffer changed: " << tagBufSize << std::endl;*/
       }
       targetCount = currentSize;
       // Debug printout
+      /*std::cout << "Targeting: " << std::endl;*/
       /*for(uint8_t& id : targetTags) {*/
       /*  std::cout << (int)id << ' ';*/
       /*}*/
@@ -459,12 +462,13 @@ int main(int argc, char** argv)
         if (cam.validData) {
           cam.captureTime = milliseconds + success;
           cv::cvtColor(cam.frame, cam.gray, cv::COLOR_BGR2GRAY);
+          cam.labelledFrame = cam.frame.clone();
           
           // Clone target camera frame into inference buffer
           /*if(cam.id == inferTarget) {*/
-            if(!cam.newFrame) {
-                cam.inferFrame = cam.frame.clone();
-            }
+            /*if(!cam.newFrame) {*/
+            /*    cam.inferFrame = cam.frame.clone();*/
+            /*}*/
             cam.newFrame = true;
           /*}*/
         }
@@ -486,13 +490,13 @@ int main(int argc, char** argv)
         
         // Draw detections onto frame
         /*if(cam.id == inferTarget) {*/
-        drawInferenceBox(cam.detections, cam.frame);
+        drawInferenceBox(cam.detections, cam.labelledFrame);
         /*}*/
         
         auto detections = frc::AprilTagDetect(detector, cam.gray);
-
         for(const frc::AprilTagDetection* tag : detections) {
           uint8_t id = tag->GetId();
+
           uint8_t found = count(targetTags.begin(), targetTags.end(), id);
           if(!found) continue;  // tag not in request array, skip
           if(tagBufPos + sizeof(AprilTagFrame) > tagBufSize) continue; // whoopsie, this would overflow, skip
@@ -520,7 +524,7 @@ int main(int argc, char** argv)
           debugTagPrint(id, transform);
           
           // Draw box on our frame
-          drawAprilTagBox(cam.frame, tag);
+          drawAprilTagBox(cam.labelledFrame, tag);
         }
       }
 
@@ -535,7 +539,7 @@ int main(int argc, char** argv)
       // Write frames to publishing source
       // Done separately because synced web streams are nice
       for(Camera& cam : cameras) {
-        if(cam.validData) cam.source->PutFrame(cam.frame);
+        if(cam.validData) cam.source->PutFrame(cam.labelledFrame);
       }
     }
 }
