@@ -39,7 +39,7 @@ std::vector<uint8_t> currentCams;
 std::vector<uint8_t> targetTags;
 uint8_t targetCount = -1;
 uint8_t *tagBuffer;
-uint8_t tagBufSize = 0;
+uint32_t tagBufSize = 0;
  
 // Representation of an ML detection
 struct Detection {
@@ -432,9 +432,9 @@ int main(int argc, char** argv)
       uint8_t currentSize = targetTags.size();
       if(targetCount != currentSize) {
         free(tagBuffer);
-        tagBufSize = sizeof(GlobalFrame) + (TAG_FRAME_SIZE * currentSize * cameras.size());
+        tagBufSize = sizeof(GlobalFrame) + ((TAG_FRAME_SIZE + 2) * currentSize * cameras.size());
         tagBuffer = (uint8_t*)malloc(tagBufSize);
-        /*std::cout << "Size of buffer changed: " << tagBufSize << std::endl;*/
+        /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
       }
       targetCount = currentSize;
       // Debug printout
@@ -505,7 +505,7 @@ int main(int argc, char** argv)
         auto detections = frc::AprilTagDetect(detector, cam.gray);
         for(const frc::AprilTagDetection* tag : detections) {
           uint8_t id = tag->GetId();
-
+          /*std::cout << "ID: " << (int)id << " found" << std::endl;*/
           uint8_t found = count(targetTags.begin(), targetTags.end(), id);
           if(!found) continue;  // tag not in request array, skip
           if(tagBufPos + TAG_FRAME_SIZE > tagBufSize) continue; // whoopsie, this would overflow, skip
@@ -530,7 +530,7 @@ int main(int argc, char** argv)
           tagBufPos += 2 + TAG_FRAME_SIZE;
 
           // Print relative offset
-          debugTagPrint(id, transform);
+          /*debugTagPrint(id, transform);*/
           
           // Draw box on our frame
           drawAprilTagBox(cam.labelledFrame, tag);
