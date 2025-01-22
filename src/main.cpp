@@ -95,7 +95,7 @@ int inferTarget = -1;
 
 // AprilTag detection objects
 AprilTagDetector detector{};
-AprilTagPoseEstimator estimator{{140_mm, (double)width, (double)height, (double)width/2, (double)height/2}};  // dummy numbers
+AprilTagPoseEstimator estimator{{6.5_in, (double)640, (double)480, (double)320, (double)240}};  // dummy numbers
 
 // Signature for Jetson comms
 const uchar udpSignature[] = {0x5b, 0x20, 0xc4, 0x10};
