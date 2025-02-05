@@ -1,5 +1,5 @@
 # Use Periphery image as base
-FROM periphery:latest
+FROM periphery-dev:latest
 
 USER root
 
