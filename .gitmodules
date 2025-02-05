@@ -1,6 +1,6 @@
 [submodule "docker/allwpilib"]
 	path = docker/allwpilib
-	url = git@github.com:wpilibsuite/allwpilib.git
+	url = https://github.com/wpilibsuite/allwpilib.git 
 [submodule "docker/opencv"]
 	path = docker/opencv
-	url = git@github.com:opencv/opencv.git
+	url = https://github.com/opencv/opencv.git 
