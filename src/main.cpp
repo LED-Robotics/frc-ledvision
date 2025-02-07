@@ -127,31 +127,7 @@ std::vector<cs::UsbCamera> initCameras(cs::VideoMode config) {
     return cameras;
 }
 
-// Draw AprilTag outline onto provided frame
-void drawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag) {
-  // Draw boxes around tags for video feed                
-  for(int i = 0; i < 4; i++) {
-      auto point1 = tag->GetCorner(i);
-      int secondIndex = i == 3 ? 0 : i + 1;   // out of bounds adjust for last iteration
-      auto point2 = tag->GetCorner(secondIndex);
-      cv::Point lineStart{(int)point1.x, (int)point1.y};
-      cv::Point lineEnd{(int)point2.x, (int)point2.y};
-      cv::line(frame, lineStart, lineEnd, cv::Scalar(0, 0, 255), 2, cv::LINE_4);
-  }
-}
 
-// Draw ML inference outlines onto provided frame
-void drawInferenceBox(std::vector<Detection> &detections, cv::Mat frame) {
-  for (auto& detection : detections) {
-      cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
-      auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
-      cv::rectangle(frame, rect, color, 2, cv::LINE_4);
-      for(int i = 0; i < detection.kps.size(); i += 3) {
-        cv::Point center(detection.kps[i], detection.kps[i+1]);
-        cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
-      }
-  }
-}
 
 
 int main(int argc, char** argv)
