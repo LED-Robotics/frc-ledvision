@@ -3,5 +3,13 @@ project(frc_ledvision_2025)
 
 find_package(wpilib REQUIRED)
 
-add_executable(frc_ledvision src/main.cpp) # executable name as first parameter
+include_directories(include)
+
+add_executable(
+  frc_ledvision src/main.cpp
+  src/Camera.cpp
+  src/networking.cpp
+  include/Camera.h
+  include/networking.h
+  ) # executable name as first parameter
 target_link_libraries(frc_ledvision cameraserver ntcore cscore wpiutil wpimath apriltag)
