@@ -11,19 +11,29 @@
 
 using namespace frc;
 
-class Cameraa {
+class Camera {
   public:
-    Cameraa(cs::UsbCamera *cam, cs::VideoMode config, AprilTagDetector *detRef, AprilTagPoseEstimator *estRef);
+    Camera(cs::UsbCamera *cam, cs::VideoMode config, AprilTagPoseEstimator::Config estConfig);
+
+    struct TagDetection {
+      int id = -1;
+      std::vector<AprilTagDetection::Point> corners;
+      Transform3d transform;
+    };
+
+    int GetID();
     
     std::vector<uint8_t> GetTargetTags();
 
     void SetTargetTags(std::vector<uint8_t> targets);
 
-    void DrawAprilTagBox(cv::Mat frame, const frc::AprilTagDetection* tag);
+    void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
 
     void DrawInferenceBox(cv::Mat frame, std::vector<Detection> &detections);
 
     bool ValidPresent();
+
+    void StartStream();
 
     void StartCollector();
 
@@ -31,26 +41,32 @@ class Cameraa {
 
     void StartProcessor();
 
-    void StartInferencing(struct sockaddr_in *server_addr);
+    void StartInferencing(struct sockaddr_in *server_addr, int client_sock);
+
+    void InferenceThread();
 
     void StartLabeller();
 
     void StartPosting();
+
+    
   
   private:
-    const int threadDelay = 20;
-    std::vector<uint8_t> targetTags;
+    const int threadDelay = 0;
+    std::vector<uint8_t> targetTags{22, 18};
 
     int id = -1;
-    cs::UsbCamera *cam;
-    cs::CvSink *sink;
-    cs::CvSource *source;
-    AprilTagDetector *detector;
-    AprilTagPoseEstimator *estimator;
+    cs::UsbCamera *cam = nullptr;
+    cs::CvSink *sink = nullptr;
+    cs::CvSource *source = nullptr;
+    AprilTagDetector detector{};
+    AprilTagPoseEstimator estimator;
     cv::Mat frame{};
     cv::Mat gray{};
     cv::Mat labelled{};
     bool inferenceEnabled = false;
+    struct sockaddr_in *ml_addr;
+    int sock = -1;
   
     uint32_t captureTime = 0;
     unsigned long lastFail = 0;
@@ -60,7 +76,8 @@ class Cameraa {
     bool validFrame = false;
     bool grayAvailable = false;
     bool frameLabelled = false;
-    AprilTagDetector::Results aprilTags;
+    bool framePosted = false;
+    std::vector<TagDetection> detectionData;
     std::vector<Detection> detections;
 
     std::thread collector;
