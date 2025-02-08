@@ -18,7 +18,7 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimato
   frc::CameraServer::StartAutomaticCapture(*source);
 }
 
-int Camera::GetID() {
+uint8_t Camera::GetID() {
   return id;
 }
 
@@ -28,6 +28,18 @@ std::vector<uint8_t> Camera::GetTargetTags() {
 
 void Camera::SetTargetTags(std::vector<uint8_t> targets) {
   targetTags = targets;
+}
+
+std::vector<Camera::TagDetection> Camera::GetTagDetections() {
+  return tagDetections;
+}
+
+int Camera::GetTagDetectionCount() {
+  return tagDetectionCount;
+}
+
+uint32_t Camera::GetCaptureTime() {
+  return captureTime;
 }
 
 // Draw AprilTag outline onto provided frame
@@ -101,6 +113,7 @@ void Camera::StartCollector() {
     }
     validFrame = !lastFail && !frame.empty();
     if(validFrame) {
+      captureTime = milliseconds + success;
       newFrame = true;
       grayAvailable = false;
       frameLabelled = false;
@@ -131,7 +144,7 @@ void Camera::StartProcessor() {
       continue;
     }
     if(!frameProcessed) {
-      detectionData.clear();
+      tagDetections.clear();
       /*source->PutFrame(gray);*/
       auto aprilTags = frc::AprilTagDetect(detector, gray);
       for(const frc::AprilTagDetection* tag : aprilTags) {
@@ -148,8 +161,9 @@ void Camera::StartProcessor() {
         }
 
         TagDetection data{id, corners, transform};
-        detectionData.push_back(data);
+        tagDetections.push_back(data);
       }
+      tagDetectionCount = tagDetections.size();
       frameProcessed = true;
     }
   }
@@ -163,25 +177,24 @@ void Camera::StartInferencing(struct sockaddr_in *server_addr, int client_sock) 
 
 void Camera::InferenceThread() {
   while(true) {
-    /*if(!ValidPresent()) {*/
-    /*  std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));*/
-    /*  continue;*/
-    /*}*/
-    if(!frame.empty())
-    detections = remoteInference(sock, ml_addr, frame);
+    if(!ValidPresent()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
+      continue;
+    }
+    mlDetections = remoteInference(sock, ml_addr, frame);
   }
 }
 
 void Camera::StartLabeller() {
   while(true) {
-    if(!ValidPresent() || (!frameProcessed && !detections.size())) {
+    if(!ValidPresent() || (!frameProcessed && !mlDetections.size())) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
-    for(TagDetection& tag : detectionData) {
+    for(TagDetection& tag : tagDetections) {
       DrawAprilTagBox(labelled, &tag);
     }
-    DrawInferenceBox(labelled, detections);
+    DrawInferenceBox(labelled, mlDetections);
     frameLabelled = true;
   }
 }

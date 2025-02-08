@@ -157,9 +157,43 @@ int main(int argc, char** argv)
 
   while(true) {
     // TEST TARGET TAGS
-    /*auto requestedTags = table->GetRaw("rqsted", targetTags);*/
-    /*targetTags.clear();*/
-    /*targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());*/
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    auto requestedTags = table->GetRaw("rqsted", targetTags);
+    targetTags.clear();
+    targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
+    for(Camera& cam : cameras) {
+      cam.SetTargetTags(targetTags);
+    }
+    
+    // reallocate buffer if size changed
+    uint8_t currentSize = targetTags.size();
+    if(targetCount != currentSize) {
+      free(tagBuffer);
+      tagBufSize = sizeof(GlobalFrame) + ((TAG_FRAME_SIZE + 2) * currentSize * cameras.size());
+      tagBuffer = (uint8_t*)malloc(tagBufSize);
+      /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
+    }
+    targetCount = currentSize;
+    for(Camera& cam : cameras) {
+      if(!cam.GetTagDetectionCount()) continue;
+      auto tagDetections = cam.GetTagDetections();
+      auto camId = cam.GetID();
+      auto capTime = cam.GetCaptureTime();
+      for(Camera::TagDetection &det : tagDetections) {
+        // Data to get shoved into buffer
+        AprilTagFrame frame {
+          det.id, 
+          camId,
+          capTime,
+          det.transform.X().value(),
+          det.transform.Y().value(),
+          det.transform.Z().value(),
+          units::degree_t{det.transform.Rotation().X()}.value(),
+          units::degree_t{det.transform.Rotation().Y()}.value(),
+          units::degree_t{det.transform.Rotation().Z()}.value()
+        };
+      }
+    }
+
+    /*std::this_thread::sleep_for(std::chrono::milliseconds(20));*/
   }
 }
