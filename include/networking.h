@@ -32,3 +32,35 @@ int sendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int r
 Detection constructDetection(uchar *buf);
 // Request inferencing on a frame
 std::vector<Detection> remoteInference(int sock, struct sockaddr_in *server_addr, cv::Mat frame);
+
+class PeripheryClient {
+  public:
+    PeripheryClient();
+    
+    // Representation of an ML detection
+    struct Detection {
+        uint8_t label = 0;
+        double x = 0;
+        double y = 0;
+        double width = 0;
+        double height = 0;
+        std::vector<double> kps = {};
+    };
+    
+    // UDP Broadcast to find command socket
+    int FindCommandSocket();
+
+    // Generic function to send datagram to socket and receive a response
+    int SendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int reqSize, uchar* buf, int bufSize);
+
+    // Format given buffer into a Detection
+    Detection ConstructDetection(uchar *buf);
+
+    // Request inferencing on a frame
+    std::vector<Detection> RemoteInference(cv::Mat frame);
+    
+
+  private:
+    int discovery_sock = -1;
+    int  = -1;
+}

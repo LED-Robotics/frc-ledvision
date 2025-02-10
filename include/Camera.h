@@ -15,44 +15,62 @@ class Camera {
   public:
     Camera(cs::UsbCamera *cam, cs::VideoMode config, AprilTagPoseEstimator::Config estConfig);
 
+    // AprilTag Detection struct
     struct TagDetection {
       uint8_t id = -1;
       std::vector<AprilTagDetection::Point> corners;
       Transform3d transform;
     };
 
+    // Fetch Camera id
     uint8_t GetID();
     
+    // Get current AprilTags being estimated
     std::vector<uint8_t> GetTargetTags();
 
+    // Set current AprilTags being estimated
     void SetTargetTags(std::vector<uint8_t> targets);
 
+    // Get current TagDetection vector from Camera
     std::vector<Camera::TagDetection> GetTagDetections();
 
+    // Get total current detections
     int GetTagDetectionCount();
 
+    // Get system time (millis) of last frame grab
     uint32_t GetCaptureTime();
 
+    // Draw AprilTag outline on frame
     void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
 
+    // Draw ML detection on frame
     void DrawInferenceBox(cv::Mat frame, std::vector<Detection> &detections);
 
+    // Check if there is currently a valid frame from the Camera
     bool ValidPresent();
 
+    // Start all threads except machine learning
     void StartStream();
 
+    // Start frame collector
     void StartCollector();
 
+    // Start frame cloning/transformation
     void StartGrayscaleConverter();
 
+    // Start processing frames
     void StartProcessor();
 
+    // Start ML thread
     void StartInferencing(struct sockaddr_in *server_addr, int client_sock);
 
+    // Actual ML lambda
     void InferenceThread();
 
+    // Start labelling frames
     void StartLabeller();
 
+    // Start posting labelled frames
     void StartPosting();
 
     
