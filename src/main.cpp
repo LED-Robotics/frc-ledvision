@@ -21,8 +21,7 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 
-
-#include "networking.h"
+#include "PeripheryClient.h"
 #include "Camera.h"
 
 #include <opencv2/core/core.hpp>
@@ -38,6 +37,8 @@ cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 
 // To store IDs of current valid cameras
 std::vector<uint8_t> currentCams;
+
+PeripheryClient periphery{};
 
 // Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
@@ -139,17 +140,15 @@ int main(int argc, char** argv)
   // Spin up separate thread to request inferencing
   std::thread inferenceSpawner([&]{
     // Find Jetson IP and port
-    struct sockaddr_in ml_server_addr;
     int result = 0;
     while(result != 1) {
-      result = getMLServer(&ml_server_addr);
+      result = periphery.GetCommandSocket();
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
-    sock = getSocket(&ml_server_addr);
-    for(Camera& cam : cameras) {
-      cam.StartInferencing(&ml_server_addr, sock);
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
+    /*for(Camera& cam : cameras) {*/
+    /*  cam.StartInferencing(&ml_server_addr, sock);*/
+    /*  std::this_thread::sleep_for(std::chrono::milliseconds(200));*/
+    /*}*/
   });
 
 

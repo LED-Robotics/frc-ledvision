@@ -176,13 +176,13 @@ void Camera::StartInferencing(struct sockaddr_in *server_addr, int client_sock) 
 }
 
 void Camera::InferenceThread() {
-  while(true) {
-    if(!ValidPresent()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
-      continue;
-    }
-    mlDetections = remoteInference(sock, ml_addr, frame);
-  }
+  /*while(true) {*/
+  /*  if(!ValidPresent()) {*/
+  /*    std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));*/
+  /*    continue;*/
+  /*  }*/
+  /*  mlDetections = remoteInference(sock, ml_addr, frame);*/
+  /*}*/
 }
 
 void Camera::StartLabeller() {
