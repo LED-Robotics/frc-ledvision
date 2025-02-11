@@ -102,10 +102,14 @@ class Camera {
     bool frameLabelled = false;
     bool framePosted = false;
     bool mlFrameAvailable = false;
+    bool newDetections = false;
+    bool copyingML = false;
+
     std::vector<TagDetection> tagDetections;
     int tagDetectionCount = 0;
     std::vector<PeripherySession> mlSessions;
     std::vector<PeripherySession::Detection> mlDetections;
+    std::vector<PeripherySession::Detection> volatileDetections;
 
     std::thread collector;
     std::thread converter;

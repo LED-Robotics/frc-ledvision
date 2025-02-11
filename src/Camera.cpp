@@ -180,12 +180,11 @@ void Camera::StartInferencing(PeripherySession session) {
 
 void Camera::InferenceThread() {
   while(true) {
-    if(!mlFrameAvailable) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    if(!mlFrameAvailable && !newDetections) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(0));
       continue;
     }
     auto detections = mlSessions[0].RunInference(mlFrame);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     mlDetections = detections;
     mlFrameAvailable = false;
   }
@@ -193,7 +192,7 @@ void Camera::InferenceThread() {
 
 void Camera::StartLabeller() {
   while(true) {
-    if(!ValidPresent() || (!frameProcessed)) {
+    if(!ValidPresent() || !frameProcessed) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
@@ -208,8 +207,6 @@ void Camera::StartLabeller() {
 void Camera::StartPosting() {
   while(true) {
     if(!ValidPresent() || !frameLabelled) {
-    /*if(!ValidPresent() || !grayAvailable) {*/
-    /*if(!ValidPresent()) {*/
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }

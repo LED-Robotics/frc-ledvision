@@ -30,7 +30,7 @@ class PeripherySession {
     int timeoutfd = -1;
 
     // Max datagram length for image stream
-    constexpr static int MaxDatagram = 32768;
+    constexpr static int MaxDatagram = 49151;
     uchar request[MaxDatagram];
     uchar response[MaxDatagram];
   };
