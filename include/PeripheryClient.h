@@ -23,9 +23,9 @@ class PeripheryClient {
 
     std::string GetAvailableModels();
 
-    bool SwitchModels(std::string modelName);
+    bool SwitchModel(std::string modelName);
 
-    PeripherySession* CreateInferenceSession();
+    PeripherySession CreateInferenceSession();
 
   private:
     struct sockaddr_in server_address;
@@ -34,4 +34,9 @@ class PeripheryClient {
     std::vector<PeripherySession> sessions;
 
     const int COMMAND_PORT = 5800;
+
+    // Max datagram length for image stream
+    static const int MaxDatagram = 1024;
+    uchar request[PeripheryClient::MaxDatagram];
+    uchar response[PeripheryClient::MaxDatagram];
   };

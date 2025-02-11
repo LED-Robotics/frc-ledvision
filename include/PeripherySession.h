@@ -4,7 +4,7 @@
 
 class PeripherySession {
   public:
-    PeripherySession();
+    PeripherySession(uint32_t id, struct sockaddr_in session_addr, bool correctlyConfigured = true);
     
     // Representation of an ML detection
     struct Detection {
@@ -21,15 +21,16 @@ class PeripherySession {
 
     std::vector<Detection> RunInference(cv::Mat frame);
 
+    bool valid = false;
+
   private:
     struct sockaddr_in session_address;
+    uint32_t sessionId = 0;
     int sock = -1;
     int timeoutfd = -1;
 
-    const int COMMAND_PORT = 5800;
-
     // Max datagram length for image stream
-    static const int MaxDatagram = 32768;
-    uchar request[PeripherySession::MaxDatagram];
-    uchar response[32768];
+    constexpr static int MaxDatagram = 32768;
+    uchar request[MaxDatagram];
+    uchar response[MaxDatagram];
   };

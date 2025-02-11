@@ -37,5 +37,6 @@ int Networking::SendReceive(int sock, struct sockaddr_in *server_addr, uchar* re
             count = recvfrom(sock, buf, bufSize, 0, (struct sockaddr*) server_addr, &addr_len);
         }
     }
+    close(sock + 1);
     return 1;
 }

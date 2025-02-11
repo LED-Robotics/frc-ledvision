@@ -1,7 +1,12 @@
 #include "PeripherySession.h"
 
-PeripherySession::PeripherySession() {
-  
+using namespace Networking;
+
+PeripherySession::PeripherySession(uint32_t id, struct sockaddr_in session_addr, bool correctlyConfigured) {
+  sessionId = id;
+  session_address = session_addr;
+  sock = GetSocket();
+  valid = correctlyConfigured;
 }
 
 // Turn current buffer into a Detection
@@ -38,12 +43,13 @@ PeripherySession::Detection PeripherySession::ConstructDetection(uchar *buf) {
 // Request inferencing on a frame
 std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat frame) {
     // Create message header buffer
-    const uchar inferSignature[] = {0xe2, 0x4d};
-    uchar header[sizeof(Networking::UdpSignature) + sizeof(inferSignature)];
-    memcpy(&header[0], Networking::UdpSignature, sizeof(Networking::UdpSignature));
-    memcpy(&header[sizeof(Networking::UdpSignature)], inferSignature, sizeof(inferSignature));
-    memcpy(request, header, sizeof(header));
-
+    size_t headerSize = sizeof(UdpSignature) + sizeof(InferenceSignature) + 4;
+    uchar header[headerSize];
+    memcpy(&header[0], UdpSignature, sizeof(UdpSignature));
+    memcpy(&header[sizeof(UdpSignature)], InferenceSignature, sizeof(InferenceSignature));
+    memcpy(&header[sizeof(UdpSignature) + sizeof(InferenceSignature)], &sessionId, 4);
+    memcpy(request, header, headerSize);
+    /*std::cout << "Session ID: " << (int)sessionId << std::endl;*/
 
     // Chunk our frame into manageable pieces 
     const int MaxChunk = MaxDatagram - sizeof(header) - 1;  // extra config byte after header
@@ -59,11 +65,11 @@ std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat 
         int size = lastChunk ? vectorSize - offset : MaxChunk;
         memcpy(request + sizeof(header) + 1, rawVector + offset, size);
         request[sizeof(header)] = lastChunk;
-        Networking::SendReceive(sock, &session_address, request, sizeof(header) + 1 + size, response, sizeof(response));
+        SendReceive(sock, &session_address, request, sizeof(header) + 1 + size, response, sizeof(response));
     }
 
     if(!memcmp(header, response, sizeof(header))) {
-        
+
         uchar sizeHigh = response[sizeof(header)];
         uchar sizeLow = response[sizeof(header) + 1];
         unsigned int size = (sizeHigh << 8) + sizeLow;
@@ -73,7 +79,7 @@ std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat 
             unsigned int totalDetections = (detectionsHigh << 8) + detectionsLow;
             /*std::cout << "Detections: " << totalDetections << std::endl;*/
             if(totalDetections) {
-              
+
 
               uchar *start = response + sizeof(header) + 4;
               std::vector<Detection> detections;

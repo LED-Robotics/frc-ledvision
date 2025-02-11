@@ -4,10 +4,10 @@
 #include <cameraserver/CameraServer.h>
 #include <thread>
 #include <chrono>
-#include "networking.h" 
 #include <apriltag/frc/apriltag/AprilTagDetector.h>
 #include <apriltag/frc/apriltag/AprilTagDetector_cv.h>
 #include <apriltag/frc/apriltag/AprilTagPoseEstimator.h>
+#include "PeripherySession.h"
 
 using namespace frc;
 
@@ -44,7 +44,7 @@ class Camera {
     void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
 
     // Draw ML detection on frame
-    void DrawInferenceBox(cv::Mat frame, std::vector<Detection> &detections);
+    void DrawInferenceBox(cv::Mat frame, std::vector<PeripherySession::Detection> &detections);
 
     // Check if there is currently a valid frame from the Camera
     bool ValidPresent();
@@ -62,7 +62,7 @@ class Camera {
     void StartProcessor();
 
     // Start ML thread
-    void StartInferencing(struct sockaddr_in *server_addr, int client_sock);
+    void StartInferencing(PeripherySession session);
 
     // Actual ML lambda
     void InferenceThread();
@@ -76,7 +76,7 @@ class Camera {
     
   
   private:
-    const int threadDelay = 0;
+    const int threadDelay = 1;
     std::vector<uint8_t> targetTags{22, 18};
 
     uint8_t id = -1;
@@ -86,10 +86,10 @@ class Camera {
     AprilTagDetector detector{};
     AprilTagPoseEstimator estimator;
     cv::Mat frame{};
+    cv::Mat mlFrame{};
     cv::Mat gray{};
     cv::Mat labelled{};
-    bool inferenceEnabled = false;
-    struct sockaddr_in *ml_addr;
+    bool mlEnabled = true;
     int sock = -1;
   
     uint32_t captureTime = 0;
@@ -101,9 +101,11 @@ class Camera {
     bool grayAvailable = false;
     bool frameLabelled = false;
     bool framePosted = false;
+    bool mlFrameAvailable = false;
     std::vector<TagDetection> tagDetections;
     int tagDetectionCount = 0;
-    std::vector<Detection> mlDetections;
+    std::vector<PeripherySession> mlSessions;
+    std::vector<PeripherySession::Detection> mlDetections;
 
     std::thread collector;
     std::thread converter;

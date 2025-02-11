@@ -22,6 +22,7 @@
 #include <sys/select.h>
 
 #include "PeripheryClient.h"
+#include "PeripherySession.h"
 #include "Camera.h"
 
 #include <opencv2/core/core.hpp>
@@ -135,8 +136,6 @@ int main(int argc, char** argv)
     cam.StartStream();    
   }
 
-  struct sockaddr_in ml_server_addr;
-  int sock = -1;
   // Spin up separate thread to request inferencing
   std::thread inferenceSpawner([&]{
     // Find Jetson IP and port
@@ -145,16 +144,26 @@ int main(int argc, char** argv)
       result = periphery.GetCommandSocket();
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
-    /*for(Camera& cam : cameras) {*/
-    /*  cam.StartInferencing(&ml_server_addr, sock);*/
-    /*  std::this_thread::sleep_for(std::chrono::milliseconds(200));*/
-    /*}*/
+
+    std::cout << "SERVER FOUND!" << std::endl;
+    std::string models = periphery.GetAvailableModels();
+    std::cout << "Models: " << models << std::endl;
+    if(strstr(models.c_str(), "reefscape_v4") != NULL) {
+      std::cout << "reefscape_v4 is present!" << std::endl;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::cout << "Switching to reefscape_v4..." << std::endl;
+    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_v4") << std::endl;
+    for(Camera& cam : cameras) {
+      cam.StartInferencing(periphery.CreateInferenceSession());
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
   });
 
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
-  while(true) {
+    while(true) {
     // TEST TARGET TAGS
     auto requestedTags = table->GetRaw("rqsted", targetTags);
     targetTags.clear();

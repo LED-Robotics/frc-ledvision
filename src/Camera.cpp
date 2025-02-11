@@ -56,7 +56,7 @@ void Camera::DrawAprilTagBox(cv::Mat frame, TagDetection* tag) {
 }
 
 // Draw ML inference outlines onto provided frame
-void Camera::DrawInferenceBox(cv::Mat frame, std::vector<Detection> &detections) {
+void Camera::DrawInferenceBox(cv::Mat frame, std::vector<PeripherySession::Detection> &detections) {
   for (auto& detection : detections) {
     cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
     auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
@@ -131,6 +131,10 @@ void Camera::StartGrayscaleConverter() {
     }
     if(!grayAvailable) {
       cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+      if(!mlFrameAvailable) {
+        mlFrame = frame.clone();
+        mlFrameAvailable = true;
+      }
       labelled = frame.clone();
       grayAvailable = true;
     }
@@ -169,25 +173,27 @@ void Camera::StartProcessor() {
   }
 }
 
-void Camera::StartInferencing(struct sockaddr_in *server_addr, int client_sock) {
-  ml_addr = server_addr;
-  sock = client_sock;
+void Camera::StartInferencing(PeripherySession session) {
+  mlSessions.push_back(session);
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
 }
 
 void Camera::InferenceThread() {
-  /*while(true) {*/
-  /*  if(!ValidPresent()) {*/
-  /*    std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));*/
-  /*    continue;*/
-  /*  }*/
-  /*  mlDetections = remoteInference(sock, ml_addr, frame);*/
-  /*}*/
+  while(true) {
+    if(!mlFrameAvailable) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      continue;
+    }
+    auto detections = mlSessions[0].RunInference(mlFrame);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    mlDetections = detections;
+    mlFrameAvailable = false;
+  }
 }
 
 void Camera::StartLabeller() {
   while(true) {
-    if(!ValidPresent() || (!frameProcessed && !mlDetections.size())) {
+    if(!ValidPresent() || (!frameProcessed)) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
