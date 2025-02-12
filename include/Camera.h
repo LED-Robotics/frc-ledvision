@@ -32,13 +32,19 @@ class Camera {
     void SetTargetTags(std::vector<uint8_t> targets);
 
     // Get current TagDetection vector from Camera
-    std::vector<Camera::TagDetection> GetTagDetections();
+    std::vector<Camera::TagDetection>* GetTagDetections();
 
     // Get total current detections
     int GetTagDetectionCount();
 
     // Get system time (millis) of last frame grab
     uint32_t GetCaptureTime();
+
+    // Stop overwriting the tag detection buffer
+    void PauseTagDetection();
+
+    // Resume overwriting the tag detection buffer
+    void ResumeTagDetection();
 
     // Draw AprilTag outline on frame
     void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
@@ -72,7 +78,6 @@ class Camera {
 
     // Start posting labelled frames
     void StartPosting();
-
     
   
   private:
@@ -104,6 +109,7 @@ class Camera {
     bool mlFrameAvailable = false;
     bool newDetections = false;
     bool copyingML = false;
+    bool pauseTagDetections = false;
 
     std::vector<TagDetection> tagDetections;
     int tagDetectionCount = 0;

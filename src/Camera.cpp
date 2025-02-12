@@ -30,8 +30,8 @@ void Camera::SetTargetTags(std::vector<uint8_t> targets) {
   targetTags = targets;
 }
 
-std::vector<Camera::TagDetection> Camera::GetTagDetections() {
-  return tagDetections;
+std::vector<Camera::TagDetection>* Camera::GetTagDetections() {
+  return &tagDetections;
 }
 
 int Camera::GetTagDetectionCount() {
@@ -40,6 +40,16 @@ int Camera::GetTagDetectionCount() {
 
 uint32_t Camera::GetCaptureTime() {
   return captureTime;
+}
+
+// Stop overwriting the tag detection buffer
+void Camera::PauseTagDetection() {
+  pauseTagDetections = true;
+}
+
+// Resume overwriting the tag detection buffer
+void Camera::ResumeTagDetection() {
+  pauseTagDetections = false;
 }
 
 // Draw AprilTag outline onto provided frame
@@ -84,11 +94,9 @@ void Camera::StartStream() {
 void Camera::StartCollector() {
   while(true) {
     if(newFrame && !framePosted) {
-      /*std::cout << "Skipped collection!" << std::endl;*/
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
-    /*std::cout << "Doing collection!" << std::endl;*/
     // Get the current time from the system clock
     auto now = std::chrono::system_clock::now();
 
@@ -98,17 +106,13 @@ void Camera::StartCollector() {
       = std::chrono::duration_cast<std::chrono::milliseconds>(
       duration).count();
       
-    /*std::cout << "Last Fail: " << lastFail << std::endl;*/
-    /*std::cout << "Milliseconds: " << milliseconds - lastFail << std::endl;*/
     if(lastFail && milliseconds - lastFail > 3000) {
       continue;
     }
     auto success = sink->GrabFrame(frame);
     if(success == 0) {
-      /*std::cout << "Frame Grab Failed!" << std::endl;*/
       lastFail = milliseconds;
     } else {
-      /*std::cout << "Frame Grab Succeeded!" << std::endl;*/
       lastFail = 0;
     }
     validFrame = !lastFail && !frame.empty();
@@ -148,12 +152,12 @@ void Camera::StartProcessor() {
       continue;
     }
     if(!frameProcessed) {
-      tagDetections.clear();
-      /*source->PutFrame(gray);*/
+      if(!pauseTagDetections) {
+        tagDetections.clear();
+      }
       auto aprilTags = frc::AprilTagDetect(detector, gray);
       for(const frc::AprilTagDetection* tag : aprilTags) {
         uint8_t id = tag->GetId();
-        /*std::cout << "ID: " << (int)id << " found" << std::endl;*/
         uint8_t found = count(targetTags.begin(), targetTags.end(), id);
         if(!found) continue;  // tag not in request array, skip
         auto transform = estimator.Estimate(*tag);  // Estimate Transform3d of tag
@@ -163,9 +167,10 @@ void Camera::StartProcessor() {
             auto point = tag->GetCorner(i);
             corners.push_back(point);
         }
-
-        TagDetection data{id, corners, transform};
-        tagDetections.push_back(data);
+        if(!pauseTagDetections) {
+          TagDetection data{id, corners, transform};
+          tagDetections.push_back(data);
+        }
       }
       tagDetectionCount = tagDetections.size();
       frameProcessed = true;

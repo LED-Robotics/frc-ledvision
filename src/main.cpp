@@ -12,17 +12,8 @@
 #include <apriltag/frc/apriltag/AprilTagFields.h>
 #include <cameraserver/CameraServer.h>
 #include <units/length.h>
-/*#include <arpa/inet.h>*/
-/*#include <stdio.h>*/
-/*#include <string.h>*/
-/*#include <sys/types.h>*/
-/*#include <sys/time.h>*/
-/*#include <linux/in.h>*/
-/*#include <sys/socket.h>*/
-/*#include <sys/select.h>*/
 
 #include "PeripheryClient.h"
-/*#include "PeripherySession.h"*/
 #include "Camera.h"
 
 #include <opencv2/core/core.hpp>
@@ -181,12 +172,19 @@ int main(int argc, char** argv)
       /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
     }
     targetCount = currentSize;
+    
+    uint32_t tagBufPos = 0;
+    GlobalFrame frameGlobal;
+    tagBufPos += sizeof(GlobalFrame);
+
     for(Camera& cam : cameras) {
       if(!cam.GetTagDetectionCount()) continue;
       auto tagDetections = cam.GetTagDetections();
       auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
-      for(Camera::TagDetection &det : tagDetections) {
+      cam.PauseTagDetection();
+      for(Camera::TagDetection &det : *tagDetections) {
+        if(tagBufPos + TAG_FRAME_SIZE > tagBufSize) continue; // whoopsie, this would overflow, skip
         // Data to get shoved into buffer
         AprilTagFrame frame {
           det.id, 
@@ -199,8 +197,23 @@ int main(int argc, char** argv)
           units::degree_t{det.transform.Rotation().Y()}.value(),
           units::degree_t{det.transform.Rotation().Z()}.value()
         };
+
+        // copy into buffer and increment counter
+        memset(tagBuffer + tagBufPos, 0x69, 2);
+        memcpy(tagBuffer + tagBufPos + 2, &frame, TAG_FRAME_SIZE);
+        tagBufPos += 2 + TAG_FRAME_SIZE;
+
       }
+      cam.ResumeTagDetection();
     }
+
+    frameGlobal.size[0] = tagBufPos & 0x00ff;
+    frameGlobal.size[1] = (tagBufPos & 0xff00) >> 8;
+    memcpy(tagBuffer, &frameGlobal, sizeof(GlobalFrame));
+
+    // Post tag buffer to NT
+    std::vector<uint8_t> tagBuf(tagBuffer, tagBuffer + tagBufPos);
+    table->PutRaw("tagBuf", tagBuf);
 
     /*std::this_thread::sleep_for(std::chrono::milliseconds(20));*/
   }
