@@ -30,7 +30,8 @@ class PeripheryClient {
   private:
     struct sockaddr_in server_address;
     int sock = -1;
-    int timeoutfd = -1;
+    struct pollfd fd;
+
     std::vector<PeripherySession> sessions;
 
     const int COMMAND_PORT = 5800;

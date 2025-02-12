@@ -12,17 +12,17 @@
 #include <apriltag/frc/apriltag/AprilTagFields.h>
 #include <cameraserver/CameraServer.h>
 #include <units/length.h>
-#include <arpa/inet.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <linux/in.h>
-#include <sys/socket.h>
-#include <sys/select.h>
+/*#include <arpa/inet.h>*/
+/*#include <stdio.h>*/
+/*#include <string.h>*/
+/*#include <sys/types.h>*/
+/*#include <sys/time.h>*/
+/*#include <linux/in.h>*/
+/*#include <sys/socket.h>*/
+/*#include <sys/select.h>*/
 
 #include "PeripheryClient.h"
-#include "PeripherySession.h"
+/*#include "PeripherySession.h"*/
 #include "Camera.h"
 
 #include <opencv2/core/core.hpp>

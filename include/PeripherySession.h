@@ -28,6 +28,7 @@ class PeripherySession {
     uint32_t sessionId = 0;
     int sock = -1;
     int timeoutfd = -1;
+    struct pollfd fd;
 
     // Max datagram length for image stream
     constexpr static int MaxDatagram = 49151;

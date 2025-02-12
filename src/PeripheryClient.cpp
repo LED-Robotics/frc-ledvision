@@ -3,7 +3,9 @@
 using namespace Networking;
 
 PeripheryClient::PeripheryClient() {
-
+  sock = GetSocket();
+  fd.fd = sock;
+  fd.events = POLLIN;
 }
 
 // Find IP Address and Port of Periphery server
@@ -22,11 +24,6 @@ int PeripheryClient::GetCommandSocket() {
     fd_set readfd;
     char buffer[100];
     
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-      perror("sock error");
-      return -1;
-    }
     ret = setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char*)&yes, sizeof(yes));
     if (ret == -1) {
       perror("setsockopt error");
@@ -42,17 +39,18 @@ int PeripheryClient::GetCommandSocket() {
 
     ret = sendto(sock, request, sizeof(request), 0, (struct sockaddr*) &broadcast_addr, addr_len);
 
-    FD_ZERO(&readfd);
-    FD_SET(sock, &readfd);
-    ret = select(sock + 1, &readfd, NULL, NULL, &timeout);
+    /*FD_ZERO(&readfd);*/
+    /*FD_SET(sock, &readfd);*/
+    /*ret = select(sock + 1, &readfd, NULL, NULL, &timeout);*/
+    ret = poll(&fd, 1, 1000);
     if (!ret) return 0;
     while(memcmp(buffer, request, sizeof(request))) {
-      if (FD_ISSET(sock, &readfd)) {
+      /*if (FD_ISSET(sock, &readfd)) {*/
         count = recvfrom(sock, buffer, 1024, 0, (struct sockaddr*)&server_addr, &addr_len);
         server_address.sin_family = server_addr.sin_family;
         server_address.sin_addr = server_addr.sin_addr;
         server_address.sin_port = server_addr.sin_port;
-      }
+      /*}*/
     } 
 
     std::cout << "Server address is " << inet_ntoa(server_addr.sin_addr) << ':' << htons(server_addr.sin_port) << std::endl;
@@ -73,7 +71,7 @@ std::string PeripheryClient::GetAvailableModels() {
   memcpy(&header[sizeof(UdpSignature)], ModelListSignature, sizeof(ModelListSignature));
   memcpy(request, header, headerSize);
 
-  SendReceive(sock, &server_address, request, headerSize, response, sizeof(response));
+  SendReceive(sock, &fd, &server_address, request, headerSize, response, sizeof(response));
 
   if(!memcmp(header, response, headerSize)) {
       
@@ -102,7 +100,7 @@ bool PeripheryClient::SwitchModel(std::string modelName) {
   strcpy(nameBuf, modelName.c_str());
   memcpy(request + headerSize, nameBuf, headerSize + payloadSize);
 
-  SendReceive(sock, &server_address, request, headerSize + payloadSize, response, sizeof(response));
+  SendReceive(sock, &fd, &server_address, request, headerSize + payloadSize, response, sizeof(response));
 
   if(!memcmp(header, response, headerSize)) {
     bool success = response[headerSize];
@@ -120,7 +118,7 @@ PeripherySession PeripheryClient::CreateInferenceSession() {
   memcpy(&header[sizeof(UdpSignature)], StartSessionSignature, sizeof(StartSessionSignature));
   memcpy(request, header, headerSize);
 
-  SendReceive(sock, &server_address, request, headerSize, response, sizeof(response));
+  SendReceive(sock, &fd, &server_address, request, headerSize, response, sizeof(response));
 
   struct sockaddr_in session_addr;
   if(!memcmp(header, response, headerSize)) {

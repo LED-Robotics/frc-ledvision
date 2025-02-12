@@ -1,6 +1,5 @@
 #include "Networking.h"
 
-
 // Return a page id for a configured network socket
 int Networking::GetSocket() {
     int sock = -1;
@@ -18,25 +17,18 @@ int Networking::GetSocket() {
 }
 
 // Send datagram to provided address using provided socket
-int Networking::SendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int reqSize, uchar* buf, int bufSize) {
+int Networking::SendReceive(int sock, struct pollfd *fd, struct sockaddr_in *server_addr, uchar* req_buf, int reqSize, uchar* buf, int bufSize) {
     socklen_t addr_len;
     int count;
     int ret;
-    fd_set readfd;
     addr_len = sizeof(struct sockaddr_in);
-    struct timeval timeout;
-    timeout.tv_usec = 500000;
-    timeout.tv_sec = 0;
 
     ret = sendto(sock, req_buf, reqSize, 0, (struct sockaddr*) server_addr, addr_len);
-    FD_ZERO(&readfd);
-    FD_SET(sock, &readfd);
-    ret = select(sock + 1, &readfd, NULL, NULL, &timeout);
+    
+    ret = poll(fd, 1, 500);
     if (ret > 0) {
-        if (FD_ISSET(sock, &readfd)) {
             count = recvfrom(sock, buf, bufSize, 0, (struct sockaddr*) server_addr, &addr_len);
-        }
+            return count;
     }
-    close(sock + 1);
-    return 1;
+    return 0;
 }

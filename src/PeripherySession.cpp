@@ -7,6 +7,8 @@ PeripherySession::PeripherySession(uint32_t id, struct sockaddr_in session_addr,
   session_address = session_addr;
   sock = GetSocket();
   valid = correctlyConfigured;
+  fd.fd = sock;
+  fd.events = POLLIN;
 }
 
 // Turn current buffer into a Detection
@@ -59,16 +61,17 @@ std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat 
     const int vectorSize = frameVec.size();
     uchar* rawVector = frameVec.data();
     int totalChunks = ceil((double)vectorSize / (double)MaxChunk);
+    int result = 0;
     for(int i = 0; i < totalChunks; i++) {
         int offset = (i * MaxChunk);
         bool lastChunk = offset + MaxChunk >= vectorSize;
         int size = lastChunk ? vectorSize - offset : MaxChunk;
         memcpy(request + sizeof(header) + 1, rawVector + offset, size);
         request[sizeof(header)] = lastChunk;
-        SendReceive(sock, &session_address, request, sizeof(header) + 1 + size, response, sizeof(response));
+        result = SendReceive(sock, &fd, &session_address, request, sizeof(header) + 1 + size, response, sizeof(response));
     }
 
-    if(!memcmp(header, response, sizeof(header))) {
+    if(result && !memcmp(header, response, sizeof(header))) {
 
         uchar sizeHigh = response[sizeof(header)];
         uchar sizeLow = response[sizeof(header) + 1];

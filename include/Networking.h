@@ -7,6 +7,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <sys/types.h>
+#include <poll.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -17,7 +18,7 @@ namespace Networking {
   int GetSocket();
 
   // Send datagram to provided address using provided socket
-  int SendReceive(int sock, struct sockaddr_in *server_addr, uchar* req_buf, int reqSize, uchar* buf, int bufSize);
+  int SendReceive(int sock, struct pollfd *fd, struct sockaddr_in *server_addr, uchar* req_buf, int reqSize, uchar* buf, int bufSize);
 
   constexpr uchar UdpSignature[4] = {0x5b, 0x20, 0xc4, 0x10};
 
