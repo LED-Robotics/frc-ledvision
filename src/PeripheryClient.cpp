@@ -46,6 +46,7 @@ int PeripheryClient::GetCommandSocket() {
     if (!ret) return 0;
     while(memcmp(buffer, request, sizeof(request))) {
       /*if (FD_ISSET(sock, &readfd)) {*/
+        clientConnected = true;
         count = recvfrom(sock, buffer, 1024, 0, (struct sockaddr*)&server_addr, &addr_len);
         server_address.sin_family = server_addr.sin_family;
         server_address.sin_addr = server_addr.sin_addr;
@@ -71,7 +72,8 @@ std::string PeripheryClient::GetAvailableModels() {
   memcpy(&header[sizeof(UdpSignature)], ModelListSignature, sizeof(ModelListSignature));
   memcpy(request, header, headerSize);
 
-  SendReceive(sock, &fd, &server_address, request, headerSize, response, sizeof(response));
+  int bytes = SendReceive(sock, &fd, &server_address, request, headerSize, response, sizeof(response));
+  if(!bytes) clientConnected = false;
 
   if(!memcmp(header, response, headerSize)) {
       
@@ -98,9 +100,10 @@ bool PeripheryClient::SwitchModel(std::string modelName) {
   int payloadSize = modelName.length();
   char nameBuf[payloadSize];
   strcpy(nameBuf, modelName.c_str());
-  memcpy(request + headerSize, nameBuf, headerSize + payloadSize);
+  memcpy(request + headerSize, nameBuf, payloadSize);
 
-  SendReceive(sock, &fd, &server_address, request, headerSize + payloadSize, response, sizeof(response));
+  int bytes = SendReceive(sock, &fd, &server_address, request, headerSize + payloadSize, response, sizeof(response));
+  if(!bytes) clientConnected = false;
 
   if(!memcmp(header, response, headerSize)) {
     bool success = response[headerSize];
@@ -118,7 +121,8 @@ PeripherySession PeripheryClient::CreateInferenceSession() {
   memcpy(&header[sizeof(UdpSignature)], StartSessionSignature, sizeof(StartSessionSignature));
   memcpy(request, header, headerSize);
 
-  SendReceive(sock, &fd, &server_address, request, headerSize, response, sizeof(response));
+  int bytes = SendReceive(sock, &fd, &server_address, request, headerSize, response, sizeof(response));
+  if(!bytes) clientConnected = false;
 
   struct sockaddr_in session_addr;
   if(!memcmp(header, response, headerSize)) {
@@ -135,13 +139,32 @@ PeripherySession PeripheryClient::CreateInferenceSession() {
     std::cout << "Session address is " << inet_ntoa(session_addr.sin_addr) << ':' << htons(session_addr.sin_port) << std::endl;
     uint32_t id;
     memcpy(&id, response + headerSize + 6, 4);
-    /*PeripherySession session{session_addr};*/
     return PeripherySession{id, session_addr};
-    /*sessions.push_back({session_addr});*/
-    /*ptr = &sessions[sessions.size() - 1];*/
-
-    /*return true;*/
   }
   return PeripherySession{0, session_addr, false};
   /*return false;*/
+}
+
+bool PeripheryClient::SessionAvailable(uint32_t id) {
+  // Create message header buffer
+  uchar header[sizeof(UdpSignature) + sizeof(QuerySessionSignature)];
+  size_t headerSize = sizeof(header);
+  memcpy(&header[0], UdpSignature, sizeof(UdpSignature));
+  memcpy(&header[sizeof(UdpSignature)], QuerySessionSignature, sizeof(QuerySessionSignature));
+  memcpy(request, header, headerSize);
+
+  memcpy(request + headerSize, &id, 4);
+
+  int bytes = SendReceive(sock, &fd, &server_address, request, headerSize + 4, response, sizeof(response));
+  if(!bytes) clientConnected = false;
+
+  if(!memcmp(header, response, headerSize)) {
+    bool alive = response[headerSize];
+    return alive;
+  }
+  return false;
+}
+
+bool PeripheryClient::GetClientConnected() {
+  return clientConnected;
 }

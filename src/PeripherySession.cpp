@@ -42,6 +42,10 @@ PeripherySession::Detection PeripherySession::ConstructDetection(uchar *buf) {
     return det;
 }
 
+uint32_t PeripherySession::GetID() {
+  return sessionId;
+}
+
 // Request inferencing on a frame
 std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat frame) {
     // Create message header buffer

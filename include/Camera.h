@@ -68,6 +68,9 @@ class Camera {
     void StartProcessor();
 
     // Start ML thread
+    void StopInferencing();
+
+    // Start ML thread
     void StartInferencing(PeripherySession session);
 
     // Actual ML lambda
@@ -78,6 +81,12 @@ class Camera {
 
     // Start posting labelled frames
     void StartPosting();
+
+    // Return if an ML session is present    
+    bool GetMLSessionAvailable();
+
+    // Return ML Session ID
+    uint32_t GetMLSessionID();
     
   
   private:
@@ -95,6 +104,7 @@ class Camera {
     cv::Mat gray{};
     cv::Mat labelled{};
     bool mlEnabled = true;
+    bool mlSessionAvailable = false;
     int sock = -1;
   
     uint32_t captureTime = 0;
@@ -108,7 +118,6 @@ class Camera {
     bool framePosted = false;
     bool mlFrameAvailable = false;
     bool newDetections = false;
-    bool copyingML = false;
     bool pauseTagDetections = false;
 
     std::vector<TagDetection> tagDetections;

@@ -54,6 +54,17 @@ struct AprilTagFrame {
   double rz;
 };
 
+// Struct format for ML detection
+struct MLDetectionFrame {
+  uint8_t label = -1;
+  uint8_t camId = -1;
+  uint32_t timeCaptured;
+  double x;
+  double y;
+  double w;
+  double h;
+};
+
 const size_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
 
 // Global data to send in the AprilTag frame
@@ -87,6 +98,14 @@ void initCameras(cs::VideoMode config) {
     cs::UsbCamera cam{"camera-" + caminfo.dev, caminfo.path};
     /*cam.SetVideoMode(config);*/
     rawCams.push_back(cam);
+  }
+}
+
+void findInferenceServer() {
+  int result = 0;
+  while(result != 1) {
+    result = periphery.GetCommandSocket();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 }
 
@@ -127,35 +146,30 @@ int main(int argc, char** argv)
     cam.StartStream();    
   }
 
-  // Spin up separate thread to request inferencing
-  std::thread inferenceSpawner([&]{
-    // Find Jetson IP and port
-    int result = 0;
-    while(result != 1) {
-      result = periphery.GetCommandSocket();
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
-
-    std::cout << "SERVER FOUND!" << std::endl;
-    std::string models = periphery.GetAvailableModels();
-    std::cout << "Models: " << models << std::endl;
-    if(strstr(models.c_str(), "reefscape_v4") != NULL) {
-      std::cout << "reefscape_v4 is present!" << std::endl;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    std::cout << "Switching to reefscape_v4..." << std::endl;
-    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_v4") << std::endl;
-    for(Camera& cam : cameras) {
-      cam.StartInferencing(periphery.CreateInferenceSession());
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    }
+  // Handle ML server communications
+     std::thread inferenceSpawner([&]{
+      while(true) {
+        if(!periphery.GetClientConnected()) {
+          findInferenceServer();
+        }
+        for(Camera& cam : cameras) {
+          if(!cam.GetMLSessionAvailable()) {
+            cam.StartInferencing(periphery.CreateInferenceSession());
+          } else {
+            bool sessionAvailable = periphery.SessionAvailable(cam.GetMLSessionID());
+            if(!sessionAvailable) {
+              cam.StopInferencing();
+            }
+          }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      }
   });
 
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
     while(true) {
-    // TEST TARGET TAGS
     auto requestedTags = table->GetRaw("rqsted", targetTags);
     targetTags.clear();
     targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
@@ -182,7 +196,7 @@ int main(int argc, char** argv)
       auto tagDetections = cam.GetTagDetections();
       auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
-      cam.PauseTagDetection();
+      /*cam.PauseTagDetection();*/
       for(Camera::TagDetection &det : *tagDetections) {
         if(tagBufPos + TAG_FRAME_SIZE > tagBufSize) continue; // whoopsie, this would overflow, skip
         // Data to get shoved into buffer
@@ -204,7 +218,7 @@ int main(int argc, char** argv)
         tagBufPos += 2 + TAG_FRAME_SIZE;
 
       }
-      cam.ResumeTagDetection();
+      /*cam.ResumeTagDetection();*/
     }
 
     frameGlobal.size[0] = tagBufPos & 0x00ff;

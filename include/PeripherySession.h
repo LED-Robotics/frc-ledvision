@@ -18,6 +18,9 @@ class PeripherySession {
 
     // Format given buffer into a Detection
     static Detection ConstructDetection(uchar *buf);
+    
+    // Return session ID
+    uint32_t GetID();
 
     std::vector<Detection> RunInference(cv::Mat frame);
 

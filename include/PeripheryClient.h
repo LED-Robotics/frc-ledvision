@@ -21,16 +21,26 @@ class PeripheryClient {
     // UDP Broadcast to find command socket
     int GetCommandSocket();
 
+    // Get available models on ML server
     std::string GetAvailableModels();
-
+    
+    // Change active model on server
     bool SwitchModel(std::string modelName);
-
+    
+    // Create inference session
     PeripherySession CreateInferenceSession();
+    
+    // Check if session is alive
+    bool SessionAvailable(uint32_t id);
+
+    // Check if the client is connected
+    bool GetClientConnected();
 
   private:
     struct sockaddr_in server_address;
     int sock = -1;
     struct pollfd fd;
+    bool clientConnected = false;
 
     std::vector<PeripherySession> sessions;
 

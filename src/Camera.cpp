@@ -178,13 +178,25 @@ void Camera::StartProcessor() {
   }
 }
 
+void Camera::StopInferencing() {
+  if(mlSessions.size()) {
+    mlSessionAvailable = false;
+    mlThread.join();
+    mlSessions.clear();
+  }
+}
+
 void Camera::StartInferencing(PeripherySession session) {
   mlSessions.push_back(session);
+  mlSessionAvailable = true;
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
 }
 
 void Camera::InferenceThread() {
   while(true) {
+    if(!mlSessionAvailable) {
+      return;
+    }
     if(!mlFrameAvailable && !newDetections) {
       std::this_thread::sleep_for(std::chrono::milliseconds(0));
       continue;
@@ -219,4 +231,13 @@ void Camera::StartPosting() {
     newFrame = false;
     frameProcessed = true;
   }
+}
+
+bool Camera::GetMLSessionAvailable() {
+  return mlSessionAvailable;
+}
+
+uint32_t Camera::GetMLSessionID() {
+  if(mlSessionAvailable) return mlSessions[0].GetID();
+  else return 0;
 }
