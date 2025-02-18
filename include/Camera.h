@@ -34,8 +34,14 @@ class Camera {
     // Get current TagDetection vector from Camera
     std::vector<Camera::TagDetection>* GetTagDetections();
 
-    // Get total current detections
+    // Get total current tag detections
     int GetTagDetectionCount();
+
+    // Get current ML Detection vector from Camera
+    std::vector<PeripherySession::Detection>* GetMLDetections();
+
+    // Get total current ML detections
+    int GetMLDetectionCount();
 
     // Get system time (millis) of last frame grab
     uint32_t GetCaptureTime();

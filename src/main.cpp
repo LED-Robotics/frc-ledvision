@@ -34,9 +34,15 @@ PeripheryClient periphery{};
 
 // Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
-uint8_t targetCount = -1;
+uint8_t targetCount = 0;
 uint8_t *tagBuffer;
 uint32_t tagBufSize = 0;
+
+// Variables for sending ML detections
+uint8_t maxDetections = 100;
+uint8_t *mlBuffer;
+uint32_t mlBufSize = 0;
+uint8_t camsInferencing = 0;
 
 std::vector<cs::UsbCamera> rawCams; // Global raw camera references
 std::vector<Camera> cameras; // Global camera references
@@ -66,6 +72,7 @@ struct MLDetectionFrame {
 };
 
 const size_t TAG_FRAME_SIZE = sizeof(AprilTagFrame);
+const size_t ML_FRAME_SIZE = sizeof(MLDetectionFrame);
 
 // Global data to send in the AprilTag frame
 struct GlobalFrame {
@@ -158,23 +165,23 @@ int main(int argc, char** argv)
   }
 
   // Handle ML server communications
-     std::thread inferenceSpawner([&]{
-      while(true) {
-        if(!periphery.GetClientConnected()) {
-          findInferenceServer();
-        }
-        for(Camera& cam : cameras) {
-          if(!cam.GetMLSessionAvailable()) {
-            cam.StartInferencing(periphery.CreateInferenceSession());
-          } else {
-            bool sessionAvailable = periphery.SessionAvailable(cam.GetMLSessionID());
-            if(!sessionAvailable) {
-              cam.StopInferencing();
-            }
+   std::thread inferenceSpawner([&]{
+    while(true) {
+      if(!periphery.GetClientConnected()) {
+        findInferenceServer();
+      }
+      for(Camera& cam : cameras) {
+        if(!cam.GetMLSessionAvailable()) {
+          cam.StartInferencing(periphery.CreateInferenceSession());
+        } else {
+          bool sessionAvailable = periphery.SessionAvailable(cam.GetMLSessionID());
+          if(!sessionAvailable) {
+            cam.StopInferencing();
           }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
       }
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
   });
 
 
@@ -188,7 +195,7 @@ int main(int argc, char** argv)
       cam.SetTargetTags(targetTags);
     }
     
-    // reallocate buffer if size changed
+    // reallocate tag buffer if size changed
     uint8_t currentSize = targetTags.size();
     if(targetCount != currentSize) {
       free(tagBuffer);
@@ -197,9 +204,19 @@ int main(int argc, char** argv)
       /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
     }
     targetCount = currentSize;
+
+    // reallocate ML buffer if size changed
+    currentSize = cameras.size();
+    if(camsInferencing != currentSize) {
+      free(tagBuffer);
+      mlBufSize = sizeof(GlobalFrame) + ((ML_FRAME_SIZE + 2) * currentSize * maxDetections);
+      mlBuffer = (uint8_t*)malloc(mlBufSize);
+      /*std::cout << "Size of buffer changed: " << (int)mlBufSize << std::endl;*/
+    }
+    camsInferencing = currentSize;
     
     uint32_t tagBufPos = 0;
-    GlobalFrame frameGlobal;
+    GlobalFrame tagFrameGlobal;
     tagBufPos += sizeof(GlobalFrame);
 
     for(Camera& cam : cameras) {
@@ -232,13 +249,54 @@ int main(int argc, char** argv)
       /*cam.ResumeTagDetection();*/
     }
 
-    frameGlobal.size[0] = tagBufPos & 0x00ff;
-    frameGlobal.size[1] = (tagBufPos & 0xff00) >> 8;
-    memcpy(tagBuffer, &frameGlobal, sizeof(GlobalFrame));
+    tagFrameGlobal.size[0] = tagBufPos & 0x00ff;
+    tagFrameGlobal.size[1] = (tagBufPos & 0xff00) >> 8;
+    memcpy(tagBuffer, &tagFrameGlobal, sizeof(GlobalFrame));
 
     // Post tag buffer to NT
     std::vector<uint8_t> tagBuf(tagBuffer, tagBuffer + tagBufPos);
     table->PutRaw("tagBuf", tagBuf);
+
+    uint32_t mlBufPos = 0;
+    GlobalFrame mlFrameGlobal;
+    mlBufPos += sizeof(GlobalFrame);
+
+    for(Camera& cam : cameras) {
+      if(!cam.GetMLDetectionCount()) continue;
+      auto mlDetections = cam.GetMLDetections();
+      auto camId = cam.GetID();
+      auto capTime = cam.GetCaptureTime();
+      /*cam.PauseTagDetection();*/
+      for(PeripherySession::Detection &det : *mlDetections) {
+        if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
+        // Data to get shoved into buffer
+        MLDetectionFrame frame {
+          det.label, 
+          camId,
+          capTime,
+          det.x,
+          det.y,
+          det.width,
+          det.height,
+        };
+
+        // copy into buffer and increment counter
+        memset(mlBuffer + mlBufPos, 0x69, 2);
+        memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
+        mlBufPos += 2 + ML_FRAME_SIZE;
+
+      }
+      /*cam.ResumeTagDetection();*/
+    }
+
+    mlFrameGlobal.size[0] = mlBufPos & 0x00ff;
+    mlFrameGlobal.size[1] = (mlBufPos & 0xff00) >> 8;
+    memcpy(mlBuffer, &mlFrameGlobal, sizeof(GlobalFrame));
+
+    // Post tag buffer to NT
+    std::vector<uint8_t> mlBuf(mlBuffer, mlBuffer + mlBufPos);
+    table->PutRaw("mlBuf", mlBuf);
+
 
     /*std::this_thread::sleep_for(std::chrono::milliseconds(20));*/
   }

@@ -38,6 +38,14 @@ int Camera::GetTagDetectionCount() {
   return tagDetectionCount;
 }
 
+std::vector<PeripherySession::Detection>* Camera::GetMLDetections() {
+  return &mlDetections;
+}
+
+int Camera::GetMLDetectionCount() {
+  return mlDetectionCount;
+}
+
 uint32_t Camera::GetCaptureTime() {
   return captureTime;
 }
