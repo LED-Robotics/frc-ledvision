@@ -211,6 +211,7 @@ void Camera::InferenceThread() {
     }
     auto detections = mlSessions[0].RunInference(mlFrame);
     mlDetections = detections;
+    mlDetectionCount = mlDetections.size();
     mlFrameAvailable = false;
   }
 }

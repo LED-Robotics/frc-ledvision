@@ -128,6 +128,7 @@ class Camera {
 
     std::vector<TagDetection> tagDetections;
     int tagDetectionCount = 0;
+    int mlDetectionCount = 0;
     std::vector<PeripherySession> mlSessions;
     std::vector<PeripherySession::Detection> mlDetections;
     std::vector<PeripherySession::Detection> volatileDetections;
