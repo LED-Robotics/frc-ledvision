@@ -105,7 +105,18 @@ void findInferenceServer() {
   int result = 0;
   while(result != 1) {
     result = periphery.GetCommandSocket();
+    if(!result) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      continue;
+    }
+    std::string models = periphery.GetAvailableModels();
+    std::cout << "Models: " << models << std::endl;
+    if(strstr(models.c_str(), "reefscape_v5") != NULL) {
+      std::cout << "reefscape_v5 is present!" << std::endl;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::cout << "Switching to reefscape_v5..." << std::endl;
+    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_v5") << std::endl;
   }
 }
 
