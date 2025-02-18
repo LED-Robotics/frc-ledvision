@@ -13,8 +13,8 @@
 #include <cameraserver/CameraServer.h>
 #include <units/length.h>
 
-#include "PeripheryClient.h"
 #include "Camera.h"
+#include "yolo11.hpp"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -30,13 +30,13 @@ cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 // To store IDs of current valid cameras
 std::vector<uint8_t> currentCams;
 
-PeripheryClient periphery{};
-
 // Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
 uint8_t targetCount = 0xff;
 uint8_t *tagBuffer = nullptr;
 uint32_t tagBufSize = 0;
+
+YOLO11* model = nullptr;
 
 // Variables for sending ML detections
 uint8_t maxDetections = 100;
@@ -108,23 +108,28 @@ void initCameras(cs::VideoMode config) {
   }
 }
 
-void findInferenceServer() {
-  int result = 0;
-  while(result != 1) {
-    result = periphery.GetCommandSocket();
-    if(!result) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
-      continue;
-    }
-    std::string models = periphery.GetAvailableModels();
-    std::cout << "Models: " << models << std::endl;
-    if(strstr(models.c_str(), "reefscape_v5") != NULL) {
-      std::cout << "reefscape_v5 is present!" << std::endl;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    std::cout << "Switching to reefscape_v5..." << std::endl;
-    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_v5") << std::endl;
-  }
+MLDetectionFrame generateMLFrame(det::DetectObject &det, uint8_t camId, uint32_t capTime) {
+  return {
+    (uint8_t)det.label, 
+    camId,
+    capTime,
+    det.rect.x,
+    det.rect.y,
+    det.rect.width,
+    det.rect.height,
+  };
+}
+
+MLDetectionFrame generateMLFrame(det::PoseObject &det, uint8_t camId, uint32_t capTime) {
+  return {
+    (uint8_t)det.label, 
+    camId,
+    capTime,
+    det.rect.x,
+    det.rect.y,
+    det.rect.width,
+    det.rect.height,
+  };
 }
 
 int main(int argc, char** argv)
@@ -156,34 +161,38 @@ int main(int argc, char** argv)
   inst.SetServerTeam(6722);
   inst.StartClient4("jetson-client");
   auto table = inst.GetTable("/jetson");
+
+  model = new YOLO11("../engines/reefscape_v5.engine");
+  model->make_pipe(true);
   
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   // Start capture on CvSources
   // TCP ports start at 1181 
   for(Camera& cam : cameras) {
     cam.StartStream();    
+    cam.SetMLDetectionMode(Camera::MLMode::Detect);
   }
 
   // Handle ML server communications
-   std::thread inferenceSpawner([&]{
+   std::thread inferThread([&]{
     while(true) {
-      if(!periphery.GetClientConnected()) {
-        findInferenceServer();
-      }
       for(Camera& cam : cameras) {
-        if(!cam.GetMLSessionAvailable()) {
-          cam.StartInferencing(periphery.CreateInferenceSession());
-        } else {
-          bool sessionAvailable = periphery.SessionAvailable(cam.GetMLSessionID());
-          if(!sessionAvailable) {
-            cam.StopInferencing();
-          }
+        if(!cam.IsMLFrameAvailable()) continue;
+        model->copy_from_Mat(cam.GetMLFrame()); 
+        model->infer();
+        if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
+          auto dets = cam.GetBoxDetections();
+          dets->clear();
+          model->detectPostprocess(*dets);
+        } else if(cam.GetMLDetectionMode() == Camera::MLMode::Pose) {
+          auto dets = cam.GetPoseDetections();
+          dets->clear();
+          model->posePostprocess(*dets);
         }
+        cam.SetMLFrameUnavailable();
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
   });
-
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
@@ -262,27 +271,28 @@ int main(int argc, char** argv)
 
     for(Camera& cam : cameras) {
       if(!cam.GetMLDetectionCount()) continue;
-      auto mlDetections = cam.GetMLDetections();
       auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
-      for(PeripherySession::Detection &det : *mlDetections) {
-        if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
-        // Data to get shoved into buffer
-        MLDetectionFrame frame {
-          det.label, 
-          camId,
-          capTime,
-          det.x,
-          det.y,
-          det.width,
-          det.height,
-        };
-
-        // copy into buffer and increment counter
-        memset(mlBuffer + mlBufPos, 0x69, 2);
-        memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
-        mlBufPos += 2 + ML_FRAME_SIZE;
-
+      if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
+        auto mlDetections = cam.GetBoxDetections();
+        for(det::DetectObject &det : *mlDetections) {
+          if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
+          auto frame = generateMLFrame(det, camId, capTime);
+          // copy into buffer and increment counter
+          memset(mlBuffer + mlBufPos, 0x69, 2);
+          memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
+          mlBufPos += 2 + ML_FRAME_SIZE;
+        }
+      } else if(cam.GetMLDetectionMode() == Camera::MLMode::Pose) {
+        auto mlDetections = cam.GetPoseDetections();
+        for(det::PoseObject &det : *mlDetections) {
+          if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
+          auto frame = generateMLFrame(det, camId, capTime);
+          // copy into buffer and increment counter
+          memset(mlBuffer + mlBufPos, 0x69, 2);
+          memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
+          mlBufPos += 2 + ML_FRAME_SIZE;
+        }
       }
     }
 

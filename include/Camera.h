@@ -7,7 +7,7 @@
 #include <apriltag/frc/apriltag/AprilTagDetector.h>
 #include <apriltag/frc/apriltag/AprilTagDetector_cv.h>
 #include <apriltag/frc/apriltag/AprilTagPoseEstimator.h>
-#include "PeripherySession.h"
+#include "common.hpp"
 
 using namespace frc;
 
@@ -20,6 +20,11 @@ class Camera {
       uint8_t id = -1;
       std::vector<AprilTagDetection::Point> corners;
       Transform3d transform;
+    };
+
+    enum MLMode {
+      Detect,
+      Pose
     };
 
     // Fetch Camera id
@@ -37,11 +42,20 @@ class Camera {
     // Get total current tag detections
     int GetTagDetectionCount();
 
-    // Get current ML Detection vector from Camera
-    std::vector<PeripherySession::Detection>* GetMLDetections();
+    // Get current box ML Detection vector from Camera
+    std::vector<det::DetectObject>* GetBoxDetections();
+
+    // Get current box ML Detection vector from Camera
+    std::vector<det::PoseObject>* GetPoseDetections();
 
     // Get total current ML detections
     int GetMLDetectionCount();
+
+    // Get current ML detection mode
+    int GetMLDetectionMode();
+
+    // Set current ML detection mode
+    void SetMLDetectionMode(int mode);
 
     // Get system time (millis) of last frame grab
     uint32_t GetCaptureTime();
@@ -56,7 +70,19 @@ class Camera {
     void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
 
     // Draw ML detection on frame
-    void DrawInferenceBox(cv::Mat frame, std::vector<PeripherySession::Detection> &detections);
+    void DrawDetectBox(cv::Mat frame, std::vector<det::DetectObject> &detections);
+
+    // Draw ML detection on frame
+    void DrawPoseBox(cv::Mat frame, std::vector<det::PoseObject> &detections);
+
+    // Check if ML frame is ready
+    bool IsMLFrameAvailable();
+
+    // Set ML frame for refresh
+    void SetMLFrameUnavailable();
+
+    // Return ML frame for inference
+    cv::Mat GetMLFrame();
 
     // Check if there is currently a valid frame from the Camera
     bool ValidPresent();
@@ -72,28 +98,12 @@ class Camera {
 
     // Start processing frames
     void StartProcessor();
-
-    // Start ML thread
-    void StopInferencing();
-
-    // Start ML thread
-    void StartInferencing(PeripherySession session);
-
-    // Actual ML lambda
-    void InferenceThread();
-
+    
     // Start labelling frames
     void StartLabeller();
 
     // Start posting labelled frames
     void StartPosting();
-
-    // Return if an ML session is present    
-    bool GetMLSessionAvailable();
-
-    // Return ML Session ID
-    uint32_t GetMLSessionID();
-    
   
   private:
     const int threadDelay = 1;
@@ -110,8 +120,6 @@ class Camera {
     cv::Mat gray{};
     cv::Mat labelled{};
     bool mlEnabled = true;
-    bool mlSessionAvailable = false;
-    int sock = -1;
   
     uint32_t captureTime = 0;
     unsigned long lastFail = 0;
@@ -129,14 +137,13 @@ class Camera {
     std::vector<TagDetection> tagDetections;
     int tagDetectionCount = 0;
     int mlDetectionCount = 0;
-    std::vector<PeripherySession> mlSessions;
-    std::vector<PeripherySession::Detection> mlDetections;
-    std::vector<PeripherySession::Detection> volatileDetections;
+    int mlMode = MLMode::Detect;
+    std::vector<det::DetectObject> boxDetections;
+    std::vector<det::PoseObject> poseDetections;
 
     std::thread collector;
     std::thread converter;
     std::thread processor;
-    std::thread mlThread;
     std::thread labeller;
     std::thread poster;
 };

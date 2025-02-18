@@ -38,8 +38,24 @@ int Camera::GetTagDetectionCount() {
   return tagDetectionCount;
 }
 
-std::vector<PeripherySession::Detection>* Camera::GetMLDetections() {
-  return &mlDetections;
+// Get current box ML Detection vector from Camera
+std::vector<det::DetectObject>* Camera::GetBoxDetections() {
+  return &boxDetections;
+}
+
+// Get current box ML Detection vector from Camera
+std::vector<det::PoseObject>* Camera::GetPoseDetections() {
+  return &poseDetections;
+}
+
+// Get current ML detection mode
+int Camera::GetMLDetectionMode() {
+  return mlMode;
+}
+
+// Set current ML detection mode
+void Camera::SetMLDetectionMode(int mode) {
+  mlMode = mode;
 }
 
 int Camera::GetMLDetectionCount() {
@@ -73,12 +89,19 @@ void Camera::DrawAprilTagBox(cv::Mat frame, TagDetection* tag) {
   }
 }
 
-// Draw ML inference outlines onto provided frame
-void Camera::DrawInferenceBox(cv::Mat frame, std::vector<PeripherySession::Detection> &detections) {
+// Draw ML detection on frame
+void Camera::DrawDetectBox(cv::Mat frame, std::vector<det::DetectObject> &detections) {
   for (auto& detection : detections) {
-    cv::Rect rect(detection.x, detection.y, detection.width, detection.height);
     auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
-    cv::rectangle(frame, rect, color, 2, cv::LINE_4);
+    cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
+  }
+}
+
+// Draw ML detection on frame
+void Camera::DrawPoseBox(cv::Mat frame, std::vector<det::PoseObject> &detections) {
+  for (auto& detection : detections) {
+    auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
+    cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
     for(int i = 0; i < detection.kps.size(); i += 3) {
       cv::Point center(detection.kps[i], detection.kps[i+1]);
       cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
@@ -88,6 +111,22 @@ void Camera::DrawInferenceBox(cv::Mat frame, std::vector<PeripherySession::Detec
 
 bool Camera::ValidPresent() {
   return newFrame && validFrame;
+}
+
+// Check if ML frame is ready
+bool Camera::IsMLFrameAvailable() {
+  return mlFrameAvailable;
+}
+
+// Check if ML frame is ready
+void Camera::SetMLFrameUnavailable() {
+  mlFrameAvailable = false;
+}
+
+
+// Return ML frame for inference
+cv::Mat Camera::GetMLFrame() {
+  return mlFrame;
 }
 
 void Camera::StartStream() {
@@ -186,36 +225,6 @@ void Camera::StartProcessor() {
   }
 }
 
-void Camera::StopInferencing() {
-  if(mlSessions.size()) {
-    mlSessionAvailable = false;
-    mlThread.join();
-    mlSessions.clear();
-  }
-}
-
-void Camera::StartInferencing(PeripherySession session) {
-  mlSessions.push_back(session);
-  mlSessionAvailable = true;
-  mlThread = std::move(std::thread(&Camera::InferenceThread, this));
-}
-
-void Camera::InferenceThread() {
-  while(true) {
-    if(!mlSessionAvailable) {
-      return;
-    }
-    if(!mlFrameAvailable && !newDetections) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(0));
-      continue;
-    }
-    auto detections = mlSessions[0].RunInference(mlFrame);
-    mlDetections = detections;
-    mlDetectionCount = mlDetections.size();
-    mlFrameAvailable = false;
-  }
-}
-
 void Camera::StartLabeller() {
   while(true) {
     if(!ValidPresent() || !frameProcessed) {
@@ -225,7 +234,11 @@ void Camera::StartLabeller() {
     for(TagDetection& tag : tagDetections) {
       DrawAprilTagBox(labelled, &tag);
     }
-    DrawInferenceBox(labelled, mlDetections);
+    if(GetMLDetectionMode() == MLMode::Detect) {
+      DrawDetectBox(labelled, boxDetections);
+    } else {
+      DrawPoseBox(labelled, poseDetections);
+    }
     frameLabelled = true;
   }
 }
@@ -240,13 +253,4 @@ void Camera::StartPosting() {
     newFrame = false;
     frameProcessed = true;
   }
-}
-
-bool Camera::GetMLSessionAvailable() {
-  return mlSessionAvailable;
-}
-
-uint32_t Camera::GetMLSessionID() {
-  if(mlSessionAvailable) return mlSessions[0].GetID();
-  else return 0;
 }
