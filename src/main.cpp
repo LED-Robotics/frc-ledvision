@@ -34,23 +34,23 @@ PeripheryClient periphery{};
 
 // Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
-uint8_t targetCount = 0;
-uint8_t *tagBuffer;
+uint8_t targetCount = 0xff;
+uint8_t *tagBuffer = nullptr;
 uint32_t tagBufSize = 0;
 
 // Variables for sending ML detections
 uint8_t maxDetections = 100;
-uint8_t *mlBuffer;
+uint8_t *mlBuffer = nullptr;
 uint32_t mlBufSize = 0;
-uint8_t camsInferencing = 0;
+uint8_t camsInferencing = 0xff;
 
 std::vector<cs::UsbCamera> rawCams; // Global raw camera references
 std::vector<Camera> cameras; // Global camera references
 
 // Struct format for AprilTag detection
 struct AprilTagFrame {
-  uint8_t tagId = -1;
-  uint8_t camId = -1;
+  uint8_t tagId = 0;
+  uint8_t camId = 0;
   uint32_t timeCaptured;
   double tx;
   double ty;
@@ -62,8 +62,8 @@ struct AprilTagFrame {
 
 // Struct format for ML detection
 struct MLDetectionFrame {
-  uint8_t label = -1;
-  uint8_t camId = -1;
+  uint8_t label = 0;
+  uint8_t camId = 0;
   uint32_t timeCaptured;
   double x;
   double y;
@@ -200,18 +200,17 @@ int main(int argc, char** argv)
     if(targetCount != currentSize) {
       free(tagBuffer);
       tagBufSize = sizeof(GlobalFrame) + ((TAG_FRAME_SIZE + 2) * currentSize * cameras.size());
-      tagBuffer = (uint8_t*)malloc(tagBufSize);
       /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
+      tagBuffer = (uint8_t*)malloc(tagBufSize);
     }
     targetCount = currentSize;
 
     // reallocate ML buffer if size changed
     currentSize = cameras.size();
     if(camsInferencing != currentSize) {
-      free(tagBuffer);
+      free(mlBuffer);
       mlBufSize = sizeof(GlobalFrame) + ((ML_FRAME_SIZE + 2) * currentSize * maxDetections);
       mlBuffer = (uint8_t*)malloc(mlBufSize);
-      /*std::cout << "Size of buffer changed: " << (int)mlBufSize << std::endl;*/
     }
     camsInferencing = currentSize;
     
@@ -266,7 +265,6 @@ int main(int argc, char** argv)
       auto mlDetections = cam.GetMLDetections();
       auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
-      /*cam.PauseTagDetection();*/
       for(PeripherySession::Detection &det : *mlDetections) {
         if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
         // Data to get shoved into buffer
@@ -286,7 +284,6 @@ int main(int argc, char** argv)
         mlBufPos += 2 + ML_FRAME_SIZE;
 
       }
-      /*cam.ResumeTagDetection();*/
     }
 
     mlFrameGlobal.size[0] = mlBufPos & 0x00ff;
