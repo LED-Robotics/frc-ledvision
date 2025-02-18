@@ -181,14 +181,13 @@ int main(int argc, char** argv)
         model->copy_from_Mat(cam.GetMLFrame()); 
         model->infer();
         if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
-          auto dets = cam.GetBoxDetections();
-          dets->clear();
+          auto dets = cam.GetInactiveBoxDetections();
           model->detectPostprocess(*dets);
         } else if(cam.GetMLDetectionMode() == Camera::MLMode::Pose) {
-          auto dets = cam.GetPoseDetections();
-          dets->clear();
+          auto dets = cam.GetInactivePoseDetections();
           model->posePostprocess(*dets);
         }
+        cam.SwitchActiveMLBuf();
         cam.SetMLFrameUnavailable();
       }
     }
@@ -219,6 +218,7 @@ int main(int argc, char** argv)
     if(camsInferencing != currentSize) {
       free(mlBuffer);
       mlBufSize = sizeof(GlobalFrame) + ((ML_FRAME_SIZE + 2) * currentSize * maxDetections);
+      /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
       mlBuffer = (uint8_t*)malloc(mlBufSize);
     }
     camsInferencing = currentSize;
@@ -271,6 +271,7 @@ int main(int argc, char** argv)
 
     for(Camera& cam : cameras) {
       if(!cam.GetMLDetectionCount()) continue;
+      cam.FreezeMLBufs();
       auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
       if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
@@ -294,6 +295,7 @@ int main(int argc, char** argv)
           mlBufPos += 2 + ML_FRAME_SIZE;
         }
       }
+      cam.UnfreezeMLBufs();
     }
 
     mlFrameGlobal.size[0] = mlBufPos & 0x00ff;

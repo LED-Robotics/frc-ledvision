@@ -48,6 +48,21 @@ class Camera {
     // Get current box ML Detection vector from Camera
     std::vector<det::PoseObject>* GetPoseDetections();
 
+    // Get stale box ML Detection vector from Camera
+    std::vector<det::DetectObject>* GetInactiveBoxDetections();
+
+    // Get stale box ML Detection vector from Camera
+    std::vector<det::PoseObject>* GetInactivePoseDetections();
+
+    // Prevent buffer swapping
+    void FreezeMLBufs();
+
+    // Allow buffer swapping
+    void UnfreezeMLBufs();
+
+    // Switch toggle active buffer for reading
+    void SwitchActiveMLBuf();
+
     // Get total current ML detections
     int GetMLDetectionCount();
 
@@ -70,10 +85,10 @@ class Camera {
     void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
 
     // Draw ML detection on frame
-    void DrawDetectBox(cv::Mat frame, std::vector<det::DetectObject> &detections);
+    void DrawDetectBox(cv::Mat frame, det::DetectObject &detection);
 
     // Draw ML detection on frame
-    void DrawPoseBox(cv::Mat frame, std::vector<det::PoseObject> &detections);
+    void DrawPoseBox(cv::Mat frame, det::PoseObject &detection);
 
     // Check if ML frame is ready
     bool IsMLFrameAvailable();
@@ -133,13 +148,20 @@ class Camera {
     bool mlFrameAvailable = false;
     bool newDetections = false;
     bool pauseTagDetections = false;
+    bool mlBufsFrozen = false;
 
     std::vector<TagDetection> tagDetections;
     int tagDetectionCount = 0;
     int mlDetectionCount = 0;
     int mlMode = MLMode::Detect;
-    std::vector<det::DetectObject> boxDetections;
-    std::vector<det::PoseObject> poseDetections;
+    std::vector<det::DetectObject>* detVector1 = new std::vector<det::DetectObject>();
+    std::vector<det::DetectObject>* detVector2 = new std::vector<det::DetectObject>();
+    std::vector<det::DetectObject>* boxLabelVector = detVector1;
+    std::vector<det::DetectObject>* inactiveBoxLabelVector = detVector2;
+    std::vector<det::PoseObject>* poseVector1 = new std::vector<det::PoseObject>();
+    std::vector<det::PoseObject>* poseVector2 = new std::vector<det::PoseObject>();
+    std::vector<det::PoseObject>* poseLabelVector = poseVector1;
+    std::vector<det::PoseObject>* inactivePoseLabelVector = poseVector2;
 
     std::thread collector;
     std::thread converter;

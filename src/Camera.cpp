@@ -16,6 +16,11 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimato
   source = new cs::CvSource{"source" + id, config};
   cam->SetVideoMode(config);
   frc::CameraServer::StartAutomaticCapture(*source);
+
+  /*boxLabelVector = &boxDets1;*/
+  /*inactiveBoxLabelVector = &boxDets2;*/
+  /*poseLabelVector = &poseDets1;*/
+  /*inactivePoseLabelVector = &poseDets2;*/
 }
 
 uint8_t Camera::GetID() {
@@ -40,12 +45,44 @@ int Camera::GetTagDetectionCount() {
 
 // Get current box ML Detection vector from Camera
 std::vector<det::DetectObject>* Camera::GetBoxDetections() {
-  return &boxDetections;
+  return boxLabelVector;
 }
 
 // Get current box ML Detection vector from Camera
 std::vector<det::PoseObject>* Camera::GetPoseDetections() {
-  return &poseDetections;
+  return poseLabelVector;
+}
+
+// Get current box ML Detection vector from Camera
+std::vector<det::DetectObject>* Camera::GetInactiveBoxDetections() {
+  return inactiveBoxLabelVector;
+}
+
+// Get current box ML Detection vector from Camera
+std::vector<det::PoseObject>* Camera::GetInactivePoseDetections() {
+  return inactivePoseLabelVector;
+}
+
+// Prevent buffer swapping
+void Camera::FreezeMLBufs() {
+  mlBufsFrozen = true;
+}
+
+// Allow buffer swapping
+void Camera::UnfreezeMLBufs() {
+  mlBufsFrozen = false;
+}
+
+// Switch toggle active buffer for reading
+void Camera::SwitchActiveMLBuf() {
+  if(mlBufsFrozen) return;
+  if(mlMode == MLMode::Detect) {
+    boxLabelVector = boxLabelVector == detVector1 ? detVector2 : detVector1;
+    inactiveBoxLabelVector = inactiveBoxLabelVector == detVector1 ? detVector2 : detVector1;
+  } else if (mlMode == MLMode::Pose) {
+    poseLabelVector = poseLabelVector == poseVector1 ? poseVector2 : poseVector1;
+    poseLabelVector = inactivePoseLabelVector == poseVector1 ? poseVector2 : poseVector1;
+  }
 }
 
 // Get current ML detection mode
@@ -59,7 +96,13 @@ void Camera::SetMLDetectionMode(int mode) {
 }
 
 int Camera::GetMLDetectionCount() {
-  return mlDetectionCount;
+  if(mlMode == MLMode::Detect) {
+    return boxLabelVector->size();
+  } else if (mlMode == MLMode::Pose) {
+    return poseLabelVector->size();
+  } else {
+    return 0;
+  }
 }
 
 uint32_t Camera::GetCaptureTime() {
@@ -90,22 +133,18 @@ void Camera::DrawAprilTagBox(cv::Mat frame, TagDetection* tag) {
 }
 
 // Draw ML detection on frame
-void Camera::DrawDetectBox(cv::Mat frame, std::vector<det::DetectObject> &detections) {
-  for (auto& detection : detections) {
-    auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
-    cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
-  }
+void Camera::DrawDetectBox(cv::Mat frame, det::DetectObject &detection) {
+  auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
+  cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
 }
 
 // Draw ML detection on frame
-void Camera::DrawPoseBox(cv::Mat frame, std::vector<det::PoseObject> &detections) {
-  for (auto& detection : detections) {
-    auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
-    cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
-    for(int i = 0; i < detection.kps.size(); i += 3) {
-      cv::Point center(detection.kps[i], detection.kps[i+1]);
-      cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
-    }
+void Camera::DrawPoseBox(cv::Mat frame, det::PoseObject &detection) {
+  auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
+  cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
+  for(int i = 0; i < detection.kps.size(); i += 3) {
+    cv::Point center(detection.kps[i], detection.kps[i+1]);
+    cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
   }
 }
 
@@ -235,9 +274,13 @@ void Camera::StartLabeller() {
       DrawAprilTagBox(labelled, &tag);
     }
     if(GetMLDetectionMode() == MLMode::Detect) {
-      DrawDetectBox(labelled, boxDetections);
-    } else {
-      DrawPoseBox(labelled, poseDetections);
+      for(det::DetectObject& det : *boxLabelVector) {
+        DrawDetectBox(labelled, det);
+      }
+    } else if(GetMLDetectionMode() == MLMode::Pose) {
+      for(det::PoseObject& det : *poseLabelVector) {
+        DrawPoseBox(labelled, det);
+      }
     }
     frameLabelled = true;
   }
