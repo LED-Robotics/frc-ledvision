@@ -1,0 +1,71 @@
+# Use Periphery image as base
+FROM nvcr.io/nvidia/tensorrt:25.01-py3
+
+USER root
+
+RUN apt update 
+
+RUN DEBIAN_FRONTEND="noninteractive" apt install libopencv-dev cmake sudo git protobuf-compiler openjdk-21-jdk curl ninja-build udev nano neovim gstreamer1.0-tools gstreamer1.0-alsa gstreamer1.0-plugins-base gstreamer1.0-plugins-good -y
+
+RUN useradd -m -d /home/runner runner
+RUN chown -R runner:runner /home/runner
+RUN adduser runner video
+RUN adduser runner sudo
+RUN echo "runner:runner" | chpasswd
+
+WORKDIR /home/runner
+
+USER runner
+
+RUN echo 'export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-arm64"' >> /home/runner/.bashrc
+
+ENV PATH="$PATH:/home/runner/.local/bin:/usr/local/cuda/bin"
+RUN echo "PATH=${PATH}" >> ~/.bashrc
+
+RUN mkdir /home/runner/deps
+
+WORKDIR /home/runner/deps
+
+COPY ./opencv /home/runner/deps/opencv
+
+USER root
+
+RUN chown -R runner:runner ./opencv
+
+USER runner
+
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64
+
+RUN mkdir ./opencv/build
+
+WORKDIR opencv/build/
+
+RUN cmake ..
+
+RUN cmake --build . --target opencv_java opencv_java_jar --parallel 4
+
+COPY ./allwpilib /home/runner/deps/allwpilib
+
+WORKDIR /home/runner/deps/allwpilib
+
+USER root
+
+RUN chown -R runner:runner /home/runner/deps/allwpilib
+
+USER runner
+
+RUN mkdir build-cmake
+
+WORKDIR ./build-cmake
+
+RUN cmake -DWITH_JAVA=ON -DWITH_JAVA_SOURCE=OFF -DWITH_WPILIB=ON -DWITH_WPIUNITS=ON -DWITH_EXAMPLES=OFF -DWITH_GUI=OFF -DWITH_TESTS=OFF -DWITH_SIMULATION_MODULES=OFF -DOPENCV_JAVA_INSTALL_DIR=/home/runner/deps/opencv/build/bin/ ..
+
+RUN cmake --build . --parallel 4
+
+USER root
+
+RUN cmake --build . --target install
+
+USER runner
+
+WORKDIR /home/runner
