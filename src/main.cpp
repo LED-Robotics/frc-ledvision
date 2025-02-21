@@ -14,7 +14,8 @@
 #include <units/length.h>
 
 #include "Camera.h"
-#include "yolo11.hpp"
+/*#include "yolo11.hpp"*/
+#include "common.hpp"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -36,7 +37,7 @@ uint8_t targetCount = 0xff;
 uint8_t *tagBuffer = nullptr;
 uint32_t tagBufSize = 0;
 
-YOLO11* model = nullptr;
+/*YOLO11* model = nullptr;*/
 
 // Variables for sending ML detections
 uint8_t maxDetections = 100;
@@ -146,7 +147,7 @@ int main(int argc, char** argv)
   // Construct camera sink/sources
   for(Camera& cam : cameras) {
     /*if(cam.ref == nullptr) continue;*/
-    std::cout << "Cam ID: " << cam.GetID() << std::endl;
+    std::cout << "Cam ID: " << (int)cam.GetID() << std::endl;
   }
 
   if(!cameras.size()) {
@@ -162,8 +163,8 @@ int main(int argc, char** argv)
   inst.StartClient4("jetson-client");
   auto table = inst.GetTable("/jetson");
 
-  model = new YOLO11("../engines/reefscape_v5.engine");
-  model->make_pipe(true);
+  /*model = new YOLO11("../engines/reefscape_v5.engine");*/
+  /*model->make_pipe(true);*/
   
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   // Start capture on CvSources
@@ -171,27 +172,12 @@ int main(int argc, char** argv)
   for(Camera& cam : cameras) {
     cam.StartStream();    
     cam.SetMLDetectionMode(Camera::MLMode::Detect);
+    /*cam.SetMLDetectionMode(Camera::MLMode::Pose);*/
+    /*cam.LoadModel("../engines/reefscape_v5.engine");*/
+    cam.StartInferencing("../engines/reefscape_v5.engine");
+    /*cam.StartInferencing("../engines/yolo11n-pose.engine");*/
+    /*cam.StartInferencing("../engines/yolo11x-pose.engine");*/
   }
-
-  // Handle ML server communications
-   std::thread inferThread([&]{
-    while(true) {
-      for(Camera& cam : cameras) {
-        if(!cam.IsMLFrameAvailable()) continue;
-        model->copy_from_Mat(cam.GetMLFrame()); 
-        model->infer();
-        if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
-          auto dets = cam.GetInactiveBoxDetections();
-          model->detectPostprocess(*dets);
-        } else if(cam.GetMLDetectionMode() == Camera::MLMode::Pose) {
-          auto dets = cam.GetInactivePoseDetections();
-          model->posePostprocess(*dets);
-        }
-        cam.SwitchActiveMLBuf();
-        cam.SetMLFrameUnavailable();
-      }
-    }
-  });
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 

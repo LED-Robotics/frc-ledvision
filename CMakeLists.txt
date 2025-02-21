@@ -33,10 +33,12 @@ find_package(wpilib REQUIRED)
 include_directories(include ${CUDA_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
 
 add_executable(
-  frc_ledvision src/main.cpp
+  frc_ledvision 
+  src/main.cpp
   src/Camera.cpp
+  src/yolo11.cpp
   include/Camera.h
-  include/yolo11.hpp
   include/common.hpp
+  include/yolo11.hpp
   ) # executable name as first parameter
 target_link_libraries(frc_ledvision cameraserver ntcore cscore wpiutil wpimath apriltag nvinfer nvinfer_plugin nvonnxparser ${CUDA_LIBRARIES} ${OpenCV_LIBS})

@@ -1,3 +1,4 @@
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -7,7 +8,7 @@
 #include <apriltag/frc/apriltag/AprilTagDetector.h>
 #include <apriltag/frc/apriltag/AprilTagDetector_cv.h>
 #include <apriltag/frc/apriltag/AprilTagPoseEstimator.h>
-#include "common.hpp"
+#include "yolo11.hpp"
 
 using namespace frc;
 
@@ -113,12 +114,27 @@ class Camera {
 
     // Start processing frames
     void StartProcessor();
+
+    // Start ML thread
+    void StartInferencing(std::string path);
+
+    // Actual ML lambda
+    void InferenceThread();
     
     // Start labelling frames
     void StartLabeller();
 
     // Start posting labelled frames
     void StartPosting();
+
+    // Start posting labelled frames
+    void LoadModel(std::string path);
+
+    // Run detect inference on frame
+    void RunInference(cv::Mat frame, std::vector<det::DetectObject> *dets);
+
+    // Run pose inference on frame
+    void RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets);
   
   private:
     const int threadDelay = 1;
@@ -163,9 +179,12 @@ class Camera {
     std::vector<det::PoseObject>* poseLabelVector = poseVector1;
     std::vector<det::PoseObject>* inactivePoseLabelVector = poseVector2;
 
+    YOLO11* model = nullptr;
+
     std::thread collector;
     std::thread converter;
     std::thread processor;
     std::thread labeller;
     std::thread poster;
+    std::thread mlThread;
 };

@@ -81,7 +81,7 @@ void Camera::SwitchActiveMLBuf() {
     inactiveBoxLabelVector = inactiveBoxLabelVector == detVector1 ? detVector2 : detVector1;
   } else if (mlMode == MLMode::Pose) {
     poseLabelVector = poseLabelVector == poseVector1 ? poseVector2 : poseVector1;
-    poseLabelVector = inactivePoseLabelVector == poseVector1 ? poseVector2 : poseVector1;
+    inactivePoseLabelVector = inactivePoseLabelVector == poseVector1 ? poseVector2 : poseVector1;
   }
 }
 
@@ -166,6 +166,26 @@ void Camera::SetMLFrameUnavailable() {
 // Return ML frame for inference
 cv::Mat Camera::GetMLFrame() {
   return mlFrame;
+}
+
+// Start posting labelled frames
+void Camera::LoadModel(std::string path) {
+  model = new YOLO11(path);
+  model->make_pipe(true);
+}
+
+// Run detect inference on frame
+void Camera::RunInference(cv::Mat frame, std::vector<det::DetectObject> *dets) {
+  model->copy_from_Mat(frame);
+  model->infer();
+  model->detectPostprocess(*dets);
+}
+
+// Run pose inference on frame
+void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
+  model->copy_from_Mat(frame);
+  model->infer();
+  model->posePostprocess(*dets);
 }
 
 void Camera::StartStream() {
@@ -264,6 +284,22 @@ void Camera::StartProcessor() {
   }
 }
 
+void Camera::InferenceThread() {
+  while(true) {
+    if(!IsMLFrameAvailable()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      continue;
+    }
+    if(GetMLDetectionMode() == MLMode::Detect) {
+      RunInference(mlFrame, GetInactiveBoxDetections());
+    } else if(GetMLDetectionMode() == MLMode::Pose) {
+      RunInference(mlFrame, GetInactivePoseDetections());
+    }
+    SwitchActiveMLBuf();
+    mlFrameAvailable = false;
+  }
+}
+
 void Camera::StartLabeller() {
   while(true) {
     if(!ValidPresent() || !frameProcessed) {
@@ -297,3 +333,10 @@ void Camera::StartPosting() {
     frameProcessed = true;
   }
 }
+
+void Camera::StartInferencing(std::string path) {
+  LoadModel(path);
+  mlThread = std::move(std::thread(&Camera::InferenceThread, this));
+}
+
+
