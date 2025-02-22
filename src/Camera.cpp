@@ -90,6 +90,11 @@ int Camera::GetMLDetectionMode() {
   return mlMode;
 }
 
+// Get current ML detection mode
+int Camera::GetMLEnabled() {
+  return mlEnabled;
+}
+
 // Set current ML detection mode
 void Camera::SetMLDetectionMode(int mode) {
   mlMode = mode;
@@ -166,6 +171,26 @@ void Camera::SetMLFrameUnavailable() {
 // Return ML frame for inference
 cv::Mat Camera::GetMLFrame() {
   return mlFrame;
+}
+
+// Disable ML
+void Camera::DisableInference() {
+  mlEnabled = false;  
+}
+
+// Enable ML (if model is loaded)
+void Camera::EnableInference() {
+  if(model != nullptr) {
+    mlEnabled = true;
+  }
+}
+
+// Start posting labelled frames
+void Camera::DestroyModel() {
+  if(model != nullptr) {
+    delete model;
+    model = nullptr;
+  }
 }
 
 // Start posting labelled frames
@@ -286,6 +311,10 @@ void Camera::StartProcessor() {
 
 void Camera::InferenceThread() {
   while(true) {
+    if(!mlEnabled) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      continue;
+    }
     if(!IsMLFrameAvailable()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;

@@ -70,6 +70,9 @@ class Camera {
     // Get current ML detection mode
     int GetMLDetectionMode();
 
+    // Get current ML detection mode
+    int GetMLEnabled();
+
     // Set current ML detection mode
     void SetMLDetectionMode(int mode);
 
@@ -127,7 +130,16 @@ class Camera {
     // Start posting labelled frames
     void StartPosting();
 
-    // Start posting labelled frames
+    // Disable ML
+    void DisableInference();
+    
+    // Enable ML (if model is loaded)
+    void EnableInference();
+
+    // Dealloc ML model
+    void DestroyModel();
+
+    // Load ML model into memory
     void LoadModel(std::string path);
 
     // Run detect inference on frame

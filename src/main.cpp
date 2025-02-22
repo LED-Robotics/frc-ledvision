@@ -14,7 +14,6 @@
 #include <units/length.h>
 
 #include "Camera.h"
-/*#include "yolo11.hpp"*/
 #include "common.hpp"
 
 #include <opencv2/core/core.hpp>
@@ -37,13 +36,12 @@ uint8_t targetCount = 0xff;
 uint8_t *tagBuffer = nullptr;
 uint32_t tagBufSize = 0;
 
-/*YOLO11* model = nullptr;*/
-
 // Variables for sending ML detections
 uint8_t maxDetections = 100;
 uint8_t *mlBuffer = nullptr;
 uint32_t mlBufSize = 0;
 uint8_t camsInferencing = 0xff;
+std::vector<uint8_t> camMLDisabled;
 
 std::vector<cs::UsbCamera> rawCams; // Global raw camera references
 std::vector<Camera> cameras; // Global camera references
@@ -169,12 +167,27 @@ int main(int argc, char** argv)
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   // Start capture on CvSources
   // TCP ports start at 1181 
+  std::string onnxPath = "../engines/reefscape_v5.onnx";
+  std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";  
+  bool modelFound = false;
+  if(!IsPathExist(enginePath)) {
+    if(IsPathExist(onnxPath)) {
+      YOLO11::generateEngine(onnxPath);
+      modelFound = IsPathExist(enginePath);
+    }
+  } else {
+    modelFound = true;
+  }
+
   for(Camera& cam : cameras) {
     cam.StartStream();    
-    cam.SetMLDetectionMode(Camera::MLMode::Detect);
+    if(modelFound) {
+      cam.SetMLDetectionMode(Camera::MLMode::Detect);
+      cam.StartInferencing(enginePath);
+    }
     /*cam.SetMLDetectionMode(Camera::MLMode::Pose);*/
     /*cam.LoadModel("../engines/reefscape_v5.engine");*/
-    cam.StartInferencing("../engines/reefscape_v5.engine");
+    
     /*cam.StartInferencing("../engines/yolo11n-pose.engine");*/
     /*cam.StartInferencing("../engines/yolo11x-pose.engine");*/
   }
@@ -183,10 +196,17 @@ int main(int argc, char** argv)
 
     while(true) {
     auto requestedTags = table->GetRaw("rqsted", targetTags);
+    camMLDisabled = table->GetRaw("mlOff", camMLDisabled);
     targetTags.clear();
     targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
     for(Camera& cam : cameras) {
       cam.SetTargetTags(targetTags);
+      auto id = cam.GetID();
+      for(int i = 0; i < camMLDisabled.size(); i++) {
+        uint8_t found = count(targetTags.begin(), targetTags.end(), id);
+        if(found) cam.DisableInference();
+        else cam.EnableInference();
+      }
     }
     
     // reallocate tag buffer if size changed
@@ -256,6 +276,7 @@ int main(int argc, char** argv)
     mlBufPos += sizeof(GlobalFrame);
 
     for(Camera& cam : cameras) {
+      if(!cam.GetMLEnabled()) continue;
       if(!cam.GetMLDetectionCount()) continue;
       cam.FreezeMLBufs();
       auto camId = cam.GetID();
