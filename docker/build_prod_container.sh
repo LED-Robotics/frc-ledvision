@@ -1,1 +1,1 @@
-docker run --restart unless-stopped --name ledvision --net=host --privileged  -v /dev/bus/usb:/dev/bus/usb -v /tmp/argus_socket:/tmp/argus_socket --runtime nvidia -d -t ledvision:latest /home/runner/frc-ledvision/build/frc-ledvision
+docker run --restart unless-stopped --name ledvision --net=host --privileged  -v /dev/bus/usb:/dev/bus/usb -v /tmp/argus_socket:/tmp/argus_socket --runtime nvidia -d -t ledvision:latest /home/runner/frc-ledvision/build/frc_ledvision
