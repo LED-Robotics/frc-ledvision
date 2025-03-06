@@ -248,6 +248,9 @@ void Camera::StartCollector() {
     }
     validFrame = !lastFail && !frame.empty();
     if(validFrame) {
+      if(recording && !recordingLabelled) {
+        outputVideo << frame;
+      }
       captureTime = milliseconds + success;
       newFrame = true;
       grayAvailable = false;
@@ -357,6 +360,7 @@ void Camera::StartPosting() {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
+    if(recording && recordingLabelled) outputVideo << labelled;
     source->PutFrame(labelled);
     newFrame = false;
     frameProcessed = true;
@@ -368,4 +372,24 @@ void Camera::StartInferencing(std::string path) {
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
 }
 
+bool Camera::StartRecording(std::string path, bool labelled) {
+  recordState = true;
+  auto config = cam->GetVideoMode();
+  if(!recording && recordState) {
+    recordingLabelled = labelled;
+    outputVideo.open(path, cv::VideoWriter::fourcc('M','J','P','G'), 30, {config.width, config.height});
+    recording = outputVideo.isOpened();
+    return recording;
+  }
+  return true;
+}
 
+bool Camera::StopRecording() {
+  recordState = false;
+  if(!recordState && recording) {
+    outputVideo.release();
+    recording = outputVideo.isOpened();
+    return recording;
+  }
+  return true;
+}

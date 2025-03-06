@@ -5,12 +5,6 @@
 #include <thread>
 #include <networktables/NetworkTableInstance.h>
 #include <networktables/NetworkTable.h>
-#include <apriltag/frc/apriltag/AprilTagDetector.h>
-#include <apriltag/frc/apriltag/AprilTagDetector_cv.h>
-#include <apriltag/frc/apriltag/AprilTagPoseEstimator.h>
-#include <apriltag/frc/apriltag/AprilTagFieldLayout.h>
-#include <apriltag/frc/apriltag/AprilTagFields.h>
-#include <cameraserver/CameraServer.h>
 #include <units/length.h>
 
 #include "Camera.h"
@@ -24,7 +18,7 @@ using namespace frc;
 
 // Camera resolution/format configs
 int width = 640;
-int height = 640;
+int height = 480;
 cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
 
 // To store IDs of current valid cameras
@@ -78,21 +72,25 @@ struct GlobalFrame {
   uint8_t size[2];
 };
 
-// Machine Learning inference variables
-int inferTarget = -1;
-
-// AprilTag detection objects
-AprilTagDetector detector{};
-AprilTagPoseEstimator estimator{{6.5_in, (double)640, (double)480, (double)320, (double)240}};  // dummy numbers
-
-// Print coordinates Transform3d
-void debugTagPrint(int id, Transform3d transform) {
-  std::cout << "Tag " << id << " Pose Estimation:" << std::endl;
-  std::cout << "X Off: " << transform.X().value();
-  std::cout << " Y Off: " << transform.Y().value();
-  std::cout << " Z Off: " << transform.Z().value() << std::endl;
-  std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
-  std::cout << std::endl;
+std::string getNewFileName() {
+  std::string path = "../videos";
+  if(!IsPathExist(path)) {
+    std::filesystem::create_directory(path);
+  }
+  int num = 0;
+  for (const auto & entry : std::filesystem::directory_iterator(path)) {
+    auto name = entry.path().generic_string();
+    /*std::cout << name << std::endl;*/
+    auto aviPos = name.find(".avi");
+    if(aviPos != std::string::npos) {
+      auto startPos = name.find("_") + 1;
+      auto numStr = name.substr(startPos, aviPos - startPos);
+      /*std::cout << "numstr: " << numStr << '\n';*/
+      int currentNum = std::stoi(numStr);
+      if(currentNum >= num) num = currentNum + 1;
+    }
+  }
+  return path + "/output_" + std::to_string(num) + ".avi";
 }
 
 // Init and return all cameras plugged in
@@ -153,8 +151,6 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  inferTarget = cameras[0].GetID();
-  
   // NT Initialization
   auto inst = nt::NetworkTableInstance::GetDefault();
   inst.SetServerTeam(6722);
@@ -194,7 +190,25 @@ int main(int argc, char** argv)
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
+    bool lastRecordState = false;
+
     while(true) {
+    bool recordState = table->GetBoolean("recordState", false);
+    bool recordLabelled = table->GetBoolean("recordState", false);
+    if(recordState != lastRecordState) {
+      lastRecordState = recordState;
+
+      auto orig = getNewFileName();
+      for(Camera& cam : cameras) {
+        if(recordState) {
+          std::string newPath = orig.substr(0, orig.size() - 4) + "_id_" + std::to_string(cam.GetID()) + ".avi";  
+          cam.StartRecording(newPath, recordLabelled);
+        } else {
+          cam.StopRecording();
+        }
+      }
+    }
+
     auto requestedTags = table->GetRaw("rqsted", targetTags);
     camMLDisabled = table->GetRaw("mlOff", camMLDisabled);
     targetTags.clear();

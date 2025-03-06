@@ -147,6 +147,16 @@ class Camera {
 
     // Run pose inference on frame
     void RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets);
+
+    // Start recording video
+    bool StartRecording(std::string path, bool labelled = false);
+
+    // Stop recording video
+    bool StopRecording();
+
+    // Check if cam is recording
+    bool GetRecording();
+
   
   private:
     const int threadDelay = 1;
@@ -199,4 +209,10 @@ class Camera {
     std::thread labeller;
     std::thread poster;
     std::thread mlThread;
+
+    bool recordState = false;
+    bool recording = false;
+    bool recordingLabelled = false;
+
+    cv::VideoWriter outputVideo;
 };
