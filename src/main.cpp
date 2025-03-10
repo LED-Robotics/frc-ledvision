@@ -194,7 +194,7 @@ int main(int argc, char** argv)
 
     while(true) {
     bool recordState = table->GetBoolean("recordState", false);
-    bool recordLabelled = table->GetBoolean("recordState", false);
+    bool recordLabelled = table->GetBoolean("recordLabelled", false);
     if(recordState != lastRecordState) {
       lastRecordState = recordState;
 
