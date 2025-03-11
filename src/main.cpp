@@ -29,6 +29,7 @@ std::vector<uint8_t> targetTags;
 uint8_t targetCount = 0xff;
 uint8_t *tagBuffer = nullptr;
 uint32_t tagBufSize = 0;
+std::vector<uint8_t> camAprilTagDisabled;
 
 // Variables for sending ML detections
 uint8_t maxDetections = 100;
@@ -175,7 +176,9 @@ int main(int argc, char** argv)
     modelFound = true;
   }
 
+  std::vector<uint8_t> camIds{};
   for(Camera& cam : cameras) {
+    camIds.push_back(cam.GetID());
     cam.StartStream();    
     if(modelFound) {
       cam.SetMLDetectionMode(Camera::MLMode::Detect);
@@ -187,6 +190,7 @@ int main(int argc, char** argv)
     /*cam.StartInferencing("../engines/yolo11n-pose.engine");*/
     /*cam.StartInferencing("../engines/yolo11x-pose.engine");*/
   }
+  table->PutRaw("ids", camIds);
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
@@ -210,9 +214,17 @@ int main(int argc, char** argv)
     }
 
     auto requestedTags = table->GetRaw("rqsted", targetTags);
+    camAprilTagDisabled = table->GetRaw("aprTagOff", camAprilTagDisabled);
     camMLDisabled = table->GetRaw("mlOff", camMLDisabled);
     targetTags.clear();
     targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
+    for(Camera& cam : cameras) {
+      auto id = cam.GetID();
+      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
+      if(found) cam.PauseTagDetection();
+      else cam.ResumeTagDetection();
+      }
+    }
     for(Camera& cam : cameras) {
       cam.SetTargetTags(targetTags);
       auto id = cam.GetID();
