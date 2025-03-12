@@ -223,7 +223,6 @@ int main(int argc, char** argv)
       uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
       if(found) cam.PauseTagDetection();
       else cam.ResumeTagDetection();
-      }
     }
     for(Camera& cam : cameras) {
       cam.SetTargetTags(targetTags);
