@@ -165,7 +165,7 @@ class Camera {
     uint8_t id = -1;
     cs::UsbCamera *cam = nullptr;
     cs::CvSink *sink = nullptr;
-    cs::CvSource *source = nullptr;
+    cs::CvSource source;
     AprilTagDetector detector{};
     AprilTagPoseEstimator estimator;
     cv::Mat frame{};
