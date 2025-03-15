@@ -219,16 +219,14 @@ int main(int argc, char** argv)
     targetTags.clear();
     targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
     for(Camera& cam : cameras) {
-      auto id = cam.GetID();
-      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
-      if(found) cam.PauseTagDetection();
-      else cam.ResumeTagDetection();
-    }
-    for(Camera& cam : cameras) {
       cam.SetTargetTags(targetTags);
       auto id = cam.GetID();
       for(int i = 0; i < camMLDisabled.size(); i++) {
-        uint8_t found = count(targetTags.begin(), targetTags.end(), id);
+        uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
+        if(found) cam.PauseTagDetection();
+        else cam.ResumeTagDetection();
+
+        uint8_t found = count(camMLDisabled.begin(), camMLDisabled.end(), id);
         if(found) cam.DisableInference();
         else cam.EnableInference();
       }
