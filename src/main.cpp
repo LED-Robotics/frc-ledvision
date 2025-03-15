@@ -259,6 +259,8 @@ int main(int argc, char** argv)
     tagBufPos += sizeof(GlobalFrame);
 
     for(Camera& cam : cameras) {
+      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
+      if(found) continue;
       if(!cam.GetTagDetectionCount()) continue;
       auto tagDetections = cam.GetTagDetections();
       auto camId = cam.GetID();
