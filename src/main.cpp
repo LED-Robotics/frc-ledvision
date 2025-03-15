@@ -221,15 +221,13 @@ int main(int argc, char** argv)
     for(Camera& cam : cameras) {
       cam.SetTargetTags(targetTags);
       auto id = cam.GetID();
-      for(int i = 0; i < camMLDisabled.size(); i++) {
-        uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
-        if(found) cam.PauseTagDetection();
-        else cam.ResumeTagDetection();
+      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
+      if(found) cam.PauseTagDetection();
+      else cam.ResumeTagDetection();
 
-        uint8_t found = count(camMLDisabled.begin(), camMLDisabled.end(), id);
-        if(found) cam.DisableInference();
-        else cam.EnableInference();
-      }
+      found = count(camMLDisabled.begin(), camMLDisabled.end(), id);
+      if(found) cam.DisableInference();
+      else cam.EnableInference();
     }
     
     // reallocate tag buffer if size changed
@@ -257,11 +255,11 @@ int main(int argc, char** argv)
     tagBufPos += sizeof(GlobalFrame);
 
     for(Camera& cam : cameras) {
-      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
+      auto camId = cam.GetID();
+      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), camId);
       if(found) continue;
       if(!cam.GetTagDetectionCount()) continue;
       auto tagDetections = cam.GetTagDetections();
-      auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
       /*cam.PauseTagDetection();*/
       for(Camera::TagDetection &det : *tagDetections) {
