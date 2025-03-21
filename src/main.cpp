@@ -19,7 +19,7 @@ using namespace frc;
 // Camera resolution/format configs
 int width = 640;
 int height = 480;
-cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
+cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 60};
 
 // To store IDs of current valid cameras
 std::vector<uint8_t> currentCams;
@@ -164,7 +164,7 @@ int main(int argc, char** argv)
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   // Start capture on CvSources
   // TCP ports start at 1181 
-  std::string onnxPath = "../engines/reefscape_v8.onnx";
+  std::string onnxPath = "../engines/reefscape_v9.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";  
   bool modelFound = false;
   if(!IsPathExist(enginePath)) {
