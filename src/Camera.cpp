@@ -342,11 +342,11 @@ void Camera::StartLabeller() {
     for(TagDetection& tag : tagDetections) {
       DrawAprilTagBox(labelled, &tag);
     }
-    if(GetMLDetectionMode() == MLMode::Detect) {
+    if(mlEnabled && GetMLDetectionMode() == MLMode::Detect) {
       for(det::DetectObject& det : *boxLabelVector) {
         DrawDetectBox(labelled, det);
       }
-    } else if(GetMLDetectionMode() == MLMode::Pose) {
+    } else if(mlEnabled && GetMLDetectionMode() == MLMode::Pose) {
       for(det::PoseObject& det : *poseLabelVector) {
         DrawPoseBox(labelled, det);
       }
