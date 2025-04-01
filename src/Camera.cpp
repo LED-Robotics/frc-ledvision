@@ -15,7 +15,7 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimato
   sink = new cs::CvSink{frc::CameraServer::GetVideo(*cam)};
   /*source = new cs::CvSource{"source" + id, config};*/
   cam->SetVideoMode(config);
-  source = frc::CameraServer::PutVideo(std::string_view("source" + id), 160, 120);
+  source = frc::CameraServer::PutVideo(std::string_view("source" + std::to_string(id)), 160, 120);
   /*frc::CameraServer::StartAutomaticCapture(*source);*/
 
   /*boxLabelVector = &boxDets1;*/

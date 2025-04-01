@@ -164,7 +164,7 @@ int main(int argc, char** argv)
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   // Start capture on CvSources
   // TCP ports start at 1181 
-  std::string onnxPath = "../engines/reefscape_capped_v1.onnx";
+  std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";  
   bool modelFound = false;
   if(!IsPathExist(enginePath)) {
