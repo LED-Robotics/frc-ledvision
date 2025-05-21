@@ -1,4 +1,4 @@
-#include "Camera.h"
+#include "Camera.hpp"
 
 Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimator::Config estConfig) 
   : estimator{estConfig} {
@@ -174,6 +174,14 @@ cv::Mat Camera::GetMLFrame() {
   return mlFrame;
 }
 
+bool Camera::IsInferencePossible() {
+  #ifdef CUDA_PRESENT
+  return model != nullptr;
+  #else
+  return mlSessions.size();
+  #endif
+}
+
 // Disable ML
 void Camera::DisableInference() {
   mlEnabled = false;  
@@ -181,37 +189,48 @@ void Camera::DisableInference() {
 
 // Enable ML (if model is loaded)
 void Camera::EnableInference() {
-  if(model != nullptr) {
+  if(IsInferencePossible()) {
     mlEnabled = true;
   }
 }
 
 // Start posting labelled frames
 void Camera::DestroyModel() {
-  if(model != nullptr) {
+  if(IsInferencePossible()) {
+    #ifdef CUDA_PRESENT
     delete model;
     model = nullptr;
+    #endif
   }
 }
 
 // Start posting labelled frames
 void Camera::LoadModel(std::string path) {
+  #ifdef CUDA_PRESENT
   model = new YOLO11(path);
   model->make_pipe(true);
+  #else
+  #endif
 }
 
 // Run detect inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::DetectObject> *dets) {
+  #ifdef CUDA_PRESENT
   model->copy_from_Mat(frame);
   model->infer();
   model->detectPostprocess(*dets);
+  #else
+  #endif
 }
 
 // Run pose inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
+  #ifdef CUDA_PRESENT
   model->copy_from_Mat(frame);
   model->infer();
   model->posePostprocess(*dets);
+  #else
+  #endif
 }
 
 void Camera::StartStream() {

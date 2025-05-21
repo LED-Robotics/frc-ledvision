@@ -44,5 +44,3 @@ private:
     cudaStream_t                 stream  = nullptr;
     Logger                       gLogger{nvinfer1::ILogger::Severity::kERROR};
 };
-
-

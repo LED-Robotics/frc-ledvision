@@ -1,9 +1,13 @@
 #pragma once 
 
+#ifdef CUDA_PRESENT
 #include "NvInfer.h"
+#endif
 #include "opencv2/opencv.hpp"
 #include <sys/stat.h>
 #include <unistd.h>
+
+#ifdef CUDA_PRESENT
 
 #define CHECK(call)                                                                                                    \
     do {                                                                                                               \
@@ -98,6 +102,8 @@ inline int type_to_size(const nvinfer1::DataType& dataType)
     }
 }
 
+#endif
+
 inline static float clamp(float val, float min, float max)
 {
     return val > min ? (val < max ? val : max) : min;
@@ -131,12 +137,14 @@ inline bool IsFolder(const std::string& path)
 }
 
 namespace det {
+#if CUDA_PRESENT
 struct Binding {
     size_t         size  = 1;
     size_t         dsize = 1;
     nvinfer1::Dims dims;
     std::string    name;
 };
+#endif // CUDA_PRESENT
 
 struct DetectObject {
     cv::Rect_<float> rect;

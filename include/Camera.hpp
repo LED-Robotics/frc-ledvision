@@ -8,7 +8,13 @@
 #include <apriltag/frc/apriltag/AprilTagDetector.h>
 #include <apriltag/frc/apriltag/AprilTagDetector_cv.h>
 #include <apriltag/frc/apriltag/AprilTagPoseEstimator.h>
+
+#ifdef CUDA_PRESENT
 #include "yolo11.hpp"
+#else
+#include "common.hpp"
+#include "PeripherySession.hpp"
+#endif
 
 using namespace frc;
 
@@ -130,6 +136,9 @@ class Camera {
     // Start posting labelled frames
     void StartPosting();
 
+    // Check if model/remote session is available
+    bool IsInferencePossible();
+
     // Disable ML
     void DisableInference();
     
@@ -192,6 +201,7 @@ class Camera {
     int tagDetectionCount = 0;
     int mlDetectionCount = 0;
     int mlMode = MLMode::Detect;
+    // Buffers for inference
     std::vector<det::DetectObject>* detVector1 = new std::vector<det::DetectObject>();
     std::vector<det::DetectObject>* detVector2 = new std::vector<det::DetectObject>();
     std::vector<det::DetectObject>* boxLabelVector = detVector1;
@@ -201,7 +211,15 @@ class Camera {
     std::vector<det::PoseObject>* poseLabelVector = poseVector1;
     std::vector<det::PoseObject>* inactivePoseLabelVector = poseVector2;
 
+    #ifdef CUDA_PRESENT
+    // Pointer for on-device ML model
     YOLO11* model = nullptr;
+    
+    #else 
+    // Remote inference session
+    std::vector<PeripherySession> mlSessions;
+
+    #endif
 
     std::thread collector;
     std::thread converter;

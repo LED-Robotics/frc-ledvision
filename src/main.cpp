@@ -7,7 +7,7 @@
 #include <networktables/NetworkTable.h>
 #include <units/length.h>
 
-#include "Camera.h"
+#include "Camera.hpp"
 #include "common.hpp"
 
 #include <opencv2/core/core.hpp>
@@ -162,8 +162,7 @@ int main(int argc, char** argv)
   /*model->make_pipe(true);*/
   
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
-  // Start capture on CvSources
-  // TCP ports start at 1181 
+  #ifdef CUDA_PRESENT
   std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";  
   bool modelFound = false;
@@ -175,15 +174,21 @@ int main(int argc, char** argv)
   } else {
     modelFound = true;
   }
+  
+  #endif
 
+  // Start capture on CvSources
+  // TCP ports start at 1181 
   std::vector<uint8_t> camIds{};
   for(Camera& cam : cameras) {
     camIds.push_back(cam.GetID());
     cam.StartStream();    
+    #ifdef CUDA_PRESENT
     if(modelFound) {
       cam.SetMLDetectionMode(Camera::MLMode::Detect);
       cam.StartInferencing(enginePath);
     }
+    #endif
     /*cam.SetMLDetectionMode(Camera::MLMode::Pose);*/
     /*cam.LoadModel("../engines/reefscape_v5.engine");*/
     
