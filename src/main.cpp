@@ -10,6 +10,10 @@
 #include "Camera.hpp"
 #include "common.hpp"
 
+#ifndef CUDA_PRESENT
+#include "PeripheryClient.hpp"
+#endif
+
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp> 
@@ -37,6 +41,10 @@ uint8_t *mlBuffer = nullptr;
 uint32_t mlBufSize = 0;
 uint8_t camsInferencing = 0xff;
 std::vector<uint8_t> camMLDisabled;
+
+#ifndef CUDA_PRESENT
+PeripheryClient periphery{};
+#endif
 
 std::vector<cs::UsbCamera> rawCams; // Global raw camera references
 std::vector<Camera> cameras; // Global camera references
@@ -130,6 +138,27 @@ MLDetectionFrame generateMLFrame(det::PoseObject &det, uint8_t camId, uint32_t c
   };
 }
 
+#ifndef CUDA_PRESENT
+void findInferenceServer() {
+  int result = 0;
+  while(result != 1) {
+    result = periphery.GetCommandSocket();
+    if(!result) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      continue;
+    }
+    std::string models = periphery.GetAvailableModels();
+    std::cout << "Models: " << models << std::endl;
+    if(strstr(models.c_str(), "reefscape_capped_v2") != NULL) {
+      std::cout << "reefscape_capped_v2 is present!" << std::endl;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::cout << "Switching to reefscape_capped_v2..." << std::endl;
+    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_capped_v2") << std::endl;
+  }
+}
+#endif
+
 int main(int argc, char** argv)
 {  
   // Initialize cameras
@@ -157,9 +186,6 @@ int main(int argc, char** argv)
   inst.SetServerTeam(6722);
   inst.StartClient4("jetson-client");
   auto table = inst.GetTable("/jetson");
-
-  /*model = new YOLO11("../engines/reefscape_v5.engine");*/
-  /*model->make_pipe(true);*/
   
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   #ifdef CUDA_PRESENT
@@ -174,6 +200,7 @@ int main(int argc, char** argv)
   } else {
     modelFound = true;
   }
+
   
   #endif
 
@@ -189,19 +216,37 @@ int main(int argc, char** argv)
       cam.StartInferencing(enginePath);
     }
     #endif
-    /*cam.SetMLDetectionMode(Camera::MLMode::Pose);*/
-    /*cam.LoadModel("../engines/reefscape_v5.engine");*/
-    
-    /*cam.StartInferencing("../engines/yolo11n-pose.engine");*/
-    /*cam.StartInferencing("../engines/yolo11x-pose.engine");*/
   }
+
+  #ifndef CUDA_PRESENT
+  // Handle ML server communications
+  std::thread inferenceSpawner([&]{
+    while(true) {
+      if(!periphery.GetClientConnected()) {
+        findInferenceServer();
+      }
+      for(Camera& cam : cameras) {
+        if(!cam.GetMLSessionAvailable()) {
+          cam.StartInferencing(periphery.CreateInferenceSession());
+        } else {
+          bool sessionAvailable = periphery.SessionAvailable(cam.GetMLSessionID());
+          if(!sessionAvailable) {
+            cam.DisableInference();
+          }
+        }
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+  });
+  #endif
+
   table->PutRaw("ids", camIds);
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
-    bool lastRecordState = false;
+  bool lastRecordState = false;
 
-    while(true) {
+  while(true) {
     bool recordState = table->GetBoolean("recordState", false);
     bool recordLabelled = table->GetBoolean("recordLabelled", false);
     if(recordState != lastRecordState) {

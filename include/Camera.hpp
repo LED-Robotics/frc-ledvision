@@ -127,6 +127,8 @@ class Camera {
     // Start ML thread
     void StartInferencing(std::string path);
 
+    void StartInferencing(PeripherySession session);
+
     // Actual ML lambda
     void InferenceThread();
     
@@ -166,6 +168,11 @@ class Camera {
     // Check if cam is recording
     bool GetRecording();
 
+    // Return if an ML session is present    
+    bool GetMLSessionAvailable();
+
+    // Return ML Session ID
+    uint32_t GetMLSessionID();
   
   private:
     const int threadDelay = 1;

@@ -1,28 +1,30 @@
 #pragma once
 
 #include "Networking.hpp"
+#include "common.hpp"
 
 class PeripherySession {
   public:
     PeripherySession(uint32_t id, struct sockaddr_in session_addr, bool correctlyConfigured = true);
     
-    // Representation of an ML detection
-    struct Detection {
-        uint8_t label = 0;
-        double x = 0;
-        double y = 0;
-        double width = 0;
-        double height = 0;
-        std::vector<double> kps = {};
-    };
-
-    // Format given buffer into a Detection
-    static Detection ConstructDetection(uchar *buf);
-    
     // Return session ID
     uint32_t GetID();
 
-    std::vector<Detection> RunInference(cv::Mat frame);
+    // Fill a DetectObject from buffer, return pointer to last byte
+    static uchar* FillDetectObject(det::DetectObject *object, uchar *buf);
+
+    // Fill a keypoints vector from buffer, return pointer to last byte
+    static uchar* FillKeypoints(std::vector<float> &kps, uchar *buf);
+
+    // Format given buffer into a DetectObject
+    static det::DetectObject ConstructDetectObject(uchar *buf);
+
+    // Format given buffer into a PoseObject
+    static det::PoseObject ConstructPoseObject(uchar *buf);
+
+    std::vector<det::DetectObject> RunDetectInference(cv::Mat frame);
+
+    std::vector<det::PoseObject> RunPoseInference(cv::Mat frame);
 
     bool valid = false;
 

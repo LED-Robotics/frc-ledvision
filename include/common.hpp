@@ -137,7 +137,7 @@ inline bool IsFolder(const std::string& path)
 }
 
 namespace det {
-#if CUDA_PRESENT
+#ifdef CUDA_PRESENT
 struct Binding {
     size_t         size  = 1;
     size_t         dsize = 1;
