@@ -127,7 +127,9 @@ class Camera {
     // Start ML thread
     void StartInferencing(std::string path);
 
+    #ifndef CUDA_PRESENT
     void StartInferencing(PeripherySession session);
+    #endif
 
     // Actual ML lambda
     void InferenceThread();

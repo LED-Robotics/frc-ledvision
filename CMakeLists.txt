@@ -22,7 +22,7 @@ set(TensorRT_LIBRARIES /usr/lib/x86_64-linux-gnu)
 message(STATUS "TensorRT Libs: \n${TensorRT_LIBRARIES}\n")
 message(STATUS "TensorRT Headers: \n${TensorRT_INCLUDE_DIRS}\n")
 
-if(CUDA_PRESENT)
+if(CUDA_FOUND)
   message("Found CUDA")
 else()
   message("Couldn't find CUDA")
@@ -45,7 +45,7 @@ set(SOURCE_FILES
   include/common.hpp
 )
 
-if(CUDA_PRESENT)
+if(CUDA_FOUND)
   include_directories(include ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
   set(SOURCE_FILES 
     ${SOURCE_FILES}
@@ -68,8 +68,8 @@ endif()
 add_executable(frc_ledvision ${SOURCE_FILES})
 
 target_link_libraries(frc_ledvision cameraserver ntcore cscore wpiutil wpimath apriltag)
-if(CUDA_PRESENT)
+if(CUDA_FOUND)
   target_link_libraries(frc_ledvision nvinfer nvinfer_plugin nvonnxparser ${CUDA_LIBRARIES} ${OpenCV_LIBS})
-  target_compile_definitions(frc_ledvision PUBLIC CUDA_PRESENT=$(CUDA_PRESENT))
+  target_compile_definitions(frc_ledvision PUBLIC CUDA_PRESENT=$(CUDA_FOUND))
 endif()
 

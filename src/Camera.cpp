@@ -417,10 +417,12 @@ void Camera::StartInferencing(std::string path) {
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
 }
 
+#ifndef CUDA_PRESENT
 void Camera::StartInferencing(PeripherySession session) {
   mlSessions.push_back(session);
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
 }
+#endif
 
 bool Camera::StartRecording(std::string path, bool labelled) {
   recordState = true;
@@ -444,6 +446,7 @@ bool Camera::StopRecording() {
   return true;
 }
 
+#ifndef CUDA_PRESENT
 bool Camera::GetMLSessionAvailable() {
   return mlSessions.size();
 }
@@ -452,3 +455,4 @@ uint32_t Camera::GetMLSessionID() {
   if(GetMLSessionAvailable()) return mlSessions[0].GetID();
   else return 0;
 }
+#endif
