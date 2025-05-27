@@ -1,4 +1,5 @@
-#include "PeripherySession.h"
+#include "PeripherySession.hpp"
+#include "common.hpp"
 
 using namespace Networking;
 
@@ -11,43 +12,65 @@ PeripherySession::PeripherySession(uint32_t id, struct sockaddr_in session_addr,
   fd.events = POLLIN;
 }
 
-// Turn current buffer into a Detection
-PeripherySession::Detection PeripherySession::ConstructDetection(uchar *buf) {
-    Detection det{};
-    det.label = (int)buf[2];
-    double *temp;
-    temp = (double*)(buf+3);
-    det.x = *temp;
-    temp++;
-    det.y = *temp;
-    temp++;
-    det.width = *temp;
-    temp++;
-    det.height = *temp;
-    temp++;
+uchar* PeripherySession::FillBoxObject(det::BoxObject *det, uchar *buf) {
+  det->label = (int)buf[2];
+  float *temp;
+  temp = (float*)(buf+3);
+  det->rect.x = *temp;
+  temp++;
+  det->rect.y = *temp;
+  temp++;
+  det->rect.width = *temp;
+  temp++;
+  det->rect.height = *temp;
+  temp++;
+  return (uchar*)temp;
+}
 
-    uchar* kpsTemp = (uchar*)temp;
-    uchar kpsLenHigh = *kpsTemp;
-    kpsTemp++;
-    uchar kpsLenLow = *kpsTemp;
-    unsigned int kpsLen = (kpsLenHigh << 8) + kpsLenLow;
-    kpsTemp++;
-    temp = (double*)kpsTemp;
+uchar* PeripherySession::FillKeypoints(std::vector<float> &kps, uchar *buf) {
+  uchar kpsLenHigh = *buf;
+  buf++;
+  uchar kpsLenLow = *buf;
+  buf++;
+  unsigned int kpsLen = (kpsLenHigh << 8) + kpsLenLow;
+  float *temp = (float*)buf;
 
-    for(int i = 0; i < kpsLen; i += 8) {
-      det.kps.push_back(*temp);
-      temp++;
-    }
+  for(int i = 0; i < kpsLen; i += 4) {
+    kps.push_back(*temp);
+    temp++;
+  }
+  return (uchar*)temp;
+}
 
-    return det;
+det::BoxObject PeripherySession::ConstructBoxObject(uchar *buf) {
+  det::BoxObject det{};
+  FillBoxObject(&det, buf);
+  return det;
+}
+
+det::PoseObject PeripherySession::ConstructPoseObject(uchar *buf) {
+  det::PoseObject det{};
+  uchar *temp = FillBoxObject((det::BoxObject*)&det, buf);
+  FillKeypoints(det.kps, temp);
+  return det;
 }
 
 uint32_t PeripherySession::GetID() {
   return sessionId;
 }
 
+
+std::vector<det::BoxObject> PeripherySession::GetBoxDetections() {
+  return boxDets;
+}
+
+std::vector<det::PoseObject> PeripherySession::GetPoseDetections() {
+  return poseDets;
+}
+
+
 // Request inferencing on a frame
-std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat frame) {
+bool PeripherySession::RunInference(cv::Mat frame, int type) {
     // Create message header buffer
     size_t headerSize = sizeof(UdpSignature) + sizeof(InferenceSignature) + 4;
     uchar header[headerSize];
@@ -84,24 +107,33 @@ std::vector<PeripherySession::Detection> PeripherySession::RunInference(cv::Mat 
             uchar detectionsHigh = response[sizeof(header)+2];
             uchar detectionsLow = response[sizeof(header) + 3];
             unsigned int totalDetections = (detectionsHigh << 8) + detectionsLow;
-            /*std::cout << "Detections: " << totalDetections << std::endl;*/
+            // std::cout << "Detections: " << totalDetections << std::endl;
             if(totalDetections) {
 
 
               uchar *start = response + sizeof(header) + 4;
-              std::vector<Detection> detections;
               for(int i = 0; i < totalDetections; i++) {
-                auto current = ConstructDetection(start);
-                detections.push_back(current);
+                switch(type) {
+                  case det::DetectionTypes::Box: {
+                    det::BoxObject current = ConstructBoxObject(start);
+                    boxDets.push_back(current);
+                    break;
+                  }
+                  case det::DetectionTypes::Pose: {
+                    det::PoseObject current = ConstructPoseObject(start);
+                    poseDets.push_back(current);
+                    break;
+                  }
+                }
 
                 uchar lenHigh = start[0];
                 uchar lenLow = start[1];
                 unsigned int len = (lenHigh << 8) + lenLow;
                 start += len;
               }
-              return detections;
+              return true;
             }
         }
     }
-    return {};
+    return false;
 }

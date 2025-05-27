@@ -1,79 +1,22 @@
 # Use Periphery image as base
-FROM periphery-dev:latest
+FROM ledvision-dev:latest
+
+RUN git clone https://github.com/LED-Robotics/frc-ledvision.git
 
 USER root
 
-RUN apt update && apt upgrade -y
-
-RUN apt install protobuf-compiler openjdk-21-jdk -y
-
-RUN usermod --login runner --move-home -d /home/runner periphery
-RUN groupadd runner
-RUN chown -R runner:runner /home/runner
-RUN adduser runner video
-RUN adduser runner sudo
-RUN echo "runner:runner" | chpasswd
-
-WORKDIR /home/runner
+RUN chown -R runner:runner /home/runner/frc-ledvision
 
 USER runner
 
-RUN echo 'export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-arm64"' > /home/runner/.bashrc
+WORKDIR /home/runner/frc-ledvision/
 
-RUN mkdir /home/runner/deps
+RUN git switch local-ml
 
-WORKDIR /home/runner/deps
+RUN mkdir build
 
-COPY ./opencv /home/runner/deps/opencv
-
-USER root
-
-RUN chown -R runner:runner ./opencv
-
-USER runner
-
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64
-
-RUN mkdir ./opencv/build
-
-WORKDIR opencv/build/
+WORKDIR ./build
 
 RUN cmake ..
 
-RUN cmake --build . --target opencv_java opencv_java_jar --parallel 4
-
-COPY ./allwpilib /home/runner/deps/allwpilib
-
-WORKDIR /home/runner/deps/allwpilib
-
-USER root
-
-RUN chown -R runner:runner /home/runner/deps/allwpilib
-
-USER runner
-
-RUN mkdir build-cmake
-
-WORKDIR ./build-cmake
-
-RUN cmake -DWITH_JAVA=ON -DWITH_JAVA_SOURCE=OFF -DWITH_WPILIB=ON -DWITH_WPIUNITS=ON -DWITH_EXAMPLES=OFF -DWITH_GUI=OFF -DWITH_TESTS=OFF -DWITH_SIMULATION_MODULES=OFF -DOPENCV_JAVA_INSTALL_DIR=/home/runner/deps/opencv/build/bin/ ..
-
-RUN cmake --build . --parallel 4
-
-USER root
-
-RUN cmake --build . --target install
-
-USER runner
-
-WORKDIR /home/runner
-
-# Install NodeJS
-ENV NODE_VERSION=22.7.0
-ENV NVM_DIR=/home/runner/.nvm
-RUN . "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION}
-RUN . "$NVM_DIR/nvm.sh" && nvm use v${NODE_VERSION}
-RUN . "$NVM_DIR/nvm.sh" && nvm alias default v${NODE_VERSION}
-ENV PATH="/$NVM_DIR/versions/node/v${NODE_VERSION}/bin/:${PATH}"
-RUN node --version
-RUN npm --version
+RUN make -j4

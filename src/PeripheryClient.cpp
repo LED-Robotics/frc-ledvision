@@ -1,4 +1,4 @@
-#include "PeripheryClient.h"
+#include "PeripheryClient.hpp"
 
 using namespace Networking;
 

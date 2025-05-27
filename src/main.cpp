@@ -5,16 +5,14 @@
 #include <thread>
 #include <networktables/NetworkTableInstance.h>
 #include <networktables/NetworkTable.h>
-#include <apriltag/frc/apriltag/AprilTagDetector.h>
-#include <apriltag/frc/apriltag/AprilTagDetector_cv.h>
-#include <apriltag/frc/apriltag/AprilTagPoseEstimator.h>
-#include <apriltag/frc/apriltag/AprilTagFieldLayout.h>
-#include <apriltag/frc/apriltag/AprilTagFields.h>
-#include <cameraserver/CameraServer.h>
 #include <units/length.h>
 
-#include "PeripheryClient.h"
-#include "Camera.h"
+#include "Camera.hpp"
+#include "common.hpp"
+
+#ifndef CUDA_PRESENT
+#include "PeripheryClient.hpp"
+#endif
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -24,25 +22,29 @@ using namespace frc;
 
 // Camera resolution/format configs
 int width = 640;
-int height = 640;
-cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 30};
+int height = 480;
+cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 60};
 
 // To store IDs of current valid cameras
 std::vector<uint8_t> currentCams;
-
-PeripheryClient periphery{};
 
 // Variables for sending AprilTag detections
 std::vector<uint8_t> targetTags;
 uint8_t targetCount = 0xff;
 uint8_t *tagBuffer = nullptr;
 uint32_t tagBufSize = 0;
+std::vector<uint8_t> camAprilTagDisabled;
 
 // Variables for sending ML detections
 uint8_t maxDetections = 100;
 uint8_t *mlBuffer = nullptr;
 uint32_t mlBufSize = 0;
 uint8_t camsInferencing = 0xff;
+std::vector<uint8_t> camMLDisabled;
+
+#ifndef CUDA_PRESENT
+PeripheryClient periphery{};
+#endif
 
 std::vector<cs::UsbCamera> rawCams; // Global raw camera references
 std::vector<Camera> cameras; // Global camera references
@@ -79,21 +81,25 @@ struct GlobalFrame {
   uint8_t size[2];
 };
 
-// Machine Learning inference variables
-int inferTarget = -1;
-
-// AprilTag detection objects
-AprilTagDetector detector{};
-AprilTagPoseEstimator estimator{{6.5_in, (double)640, (double)480, (double)320, (double)240}};  // dummy numbers
-
-// Print coordinates Transform3d
-void debugTagPrint(int id, Transform3d transform) {
-  std::cout << "Tag " << id << " Pose Estimation:" << std::endl;
-  std::cout << "X Off: " << transform.X().value();
-  std::cout << " Y Off: " << transform.Y().value();
-  std::cout << " Z Off: " << transform.Z().value() << std::endl;
-  std::cout << "Rot Off: " << transform.Rotation().ToRotation2d().Degrees().value() << std::endl;
-  std::cout << std::endl;
+std::string getNewFileName() {
+  std::string path = "../videos";
+  if(!IsPathExist(path)) {
+    std::filesystem::create_directory(path);
+  }
+  int num = 0;
+  for (const auto & entry : std::filesystem::directory_iterator(path)) {
+    auto name = entry.path().generic_string();
+    /*std::cout << name << std::endl;*/
+    auto aviPos = name.find(".avi");
+    if(aviPos != std::string::npos) {
+      auto startPos = name.find("_") + 1;
+      auto numStr = name.substr(startPos, aviPos - startPos);
+      /*std::cout << "numstr: " << numStr << '\n';*/
+      int currentNum = std::stoi(numStr);
+      if(currentNum >= num) num = currentNum + 1;
+    }
+  }
+  return path + "/output_" + std::to_string(num) + ".avi";
 }
 
 // Init and return all cameras plugged in
@@ -108,6 +114,31 @@ void initCameras(cs::VideoMode config) {
   }
 }
 
+MLDetectionFrame generateMLFrame(det::BoxObject &det, uint8_t camId, uint32_t capTime) {
+  return {
+    (uint8_t)det.label, 
+    camId,
+    capTime,
+    det.rect.x,
+    det.rect.y,
+    det.rect.width,
+    det.rect.height,
+  };
+}
+
+MLDetectionFrame generateMLFrame(det::PoseObject &det, uint8_t camId, uint32_t capTime) {
+  return {
+    (uint8_t)det.label, 
+    camId,
+    capTime,
+    det.rect.x,
+    det.rect.y,
+    det.rect.width,
+    det.rect.height,
+  };
+}
+
+#ifndef CUDA_PRESENT
 void findInferenceServer() {
   int result = 0;
   while(result != 1) {
@@ -118,14 +149,19 @@ void findInferenceServer() {
     }
     std::string models = periphery.GetAvailableModels();
     std::cout << "Models: " << models << std::endl;
-    if(strstr(models.c_str(), "reefscape_v5") != NULL) {
-      std::cout << "reefscape_v5 is present!" << std::endl;
+    if(strstr(models.c_str(), "reefscape_capped_v2") != NULL) {
+    // if(strstr(models.c_str(), "skeleton_large") != NULL) {
+      std::cout << "reefscape_capped_v2 is present!" << std::endl;
+      // std::cout << "skeleton_large is present!" << std::endl;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    std::cout << "Switching to reefscape_v5..." << std::endl;
-    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_v5") << std::endl;
+    std::cout << "Switching to reefscape_capped_v2..." << std::endl;
+    // std::cout << "Switching to skeleton_large..." << std::endl;
+    std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_capped_v2") << std::endl;
+    // std::cout << "Switching result: " << (int)periphery.SwitchModel("skeleton_large") << std::endl;
   }
 }
+#endif
 
 int main(int argc, char** argv)
 {  
@@ -141,7 +177,7 @@ int main(int argc, char** argv)
   // Construct camera sink/sources
   for(Camera& cam : cameras) {
     /*if(cam.ref == nullptr) continue;*/
-    std::cout << "Cam ID: " << cam.GetID() << std::endl;
+    std::cout << "Cam ID: " << (int)cam.GetID() << std::endl;
   }
 
   if(!cameras.size()) {
@@ -149,8 +185,6 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  inferTarget = cameras[0].GetID();
-  
   // NT Initialization
   auto inst = nt::NetworkTableInstance::GetDefault();
   inst.SetServerTeam(6722);
@@ -158,14 +192,39 @@ int main(int argc, char** argv)
   auto table = inst.GetTable("/jetson");
   
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
-  // Start capture on CvSources
-  // TCP ports start at 1181 
-  for(Camera& cam : cameras) {
-    cam.StartStream();    
+  #ifdef CUDA_PRESENT
+  std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
+  std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";  
+  bool modelFound = false;
+  if(!IsPathExist(enginePath)) {
+    if(IsPathExist(onnxPath)) {
+      YOLO11::generateEngine(onnxPath);
+      modelFound = IsPathExist(enginePath);
+    }
+  } else {
+    modelFound = true;
   }
 
+  
+  #endif
+
+  // Start capture on CvSources
+  // TCP ports start at 1181 
+  std::vector<uint8_t> camIds{};
+  for(Camera& cam : cameras) {
+    camIds.push_back(cam.GetID());
+    cam.StartStream();    
+    #ifdef CUDA_PRESENT
+    if(modelFound) {
+      cam.SetMLDetectionMode(Camera::MLMode::Detect);
+      cam.StartInferencing(enginePath);
+    }
+    #endif
+  }
+
+  #ifndef CUDA_PRESENT
   // Handle ML server communications
-   std::thread inferenceSpawner([&]{
+  std::thread inferenceSpawner([&]{
     while(true) {
       if(!periphery.GetClientConnected()) {
         findInferenceServer();
@@ -176,23 +235,53 @@ int main(int argc, char** argv)
         } else {
           bool sessionAvailable = periphery.SessionAvailable(cam.GetMLSessionID());
           if(!sessionAvailable) {
-            cam.StopInferencing();
+            cam.DisableInference();
           }
         }
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
   });
+  #endif
 
+  table->PutRaw("ids", camIds);
 
   /*std::cout << "Size of Tag Frame: " << (int)TAG_FRAME_SIZE << std::endl;*/
 
-    while(true) {
+  bool lastRecordState = false;
+
+  while(true) {
+    bool recordState = table->GetBoolean("recordState", false);
+    bool recordLabelled = table->GetBoolean("recordLabelled", false);
+    if(recordState != lastRecordState) {
+      lastRecordState = recordState;
+
+      auto orig = getNewFileName();
+      for(Camera& cam : cameras) {
+        if(recordState) {
+          std::string newPath = orig.substr(0, orig.size() - 4) + "_id_" + std::to_string(cam.GetID()) + ".avi";  
+          cam.StartRecording(newPath, recordLabelled);
+        } else {
+          cam.StopRecording();
+        }
+      }
+    }
+
     auto requestedTags = table->GetRaw("rqsted", targetTags);
+    camAprilTagDisabled = table->GetRaw("aprTagOff", camAprilTagDisabled);
+    camMLDisabled = table->GetRaw("mlOff", camMLDisabled);
     targetTags.clear();
     targetTags.insert(targetTags.end(), requestedTags.begin(), requestedTags.end());
     for(Camera& cam : cameras) {
       cam.SetTargetTags(targetTags);
+      auto id = cam.GetID();
+      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), id);
+      if(found) cam.PauseTagDetection();
+      else cam.ResumeTagDetection();
+
+      found = count(camMLDisabled.begin(), camMLDisabled.end(), id);
+      if(found) cam.DisableInference();
+      else cam.EnableInference();
     }
     
     // reallocate tag buffer if size changed
@@ -210,6 +299,7 @@ int main(int argc, char** argv)
     if(camsInferencing != currentSize) {
       free(mlBuffer);
       mlBufSize = sizeof(GlobalFrame) + ((ML_FRAME_SIZE + 2) * currentSize * maxDetections);
+      /*std::cout << "Size of buffer changed: " << (int)tagBufSize << std::endl;*/
       mlBuffer = (uint8_t*)malloc(mlBufSize);
     }
     camsInferencing = currentSize;
@@ -219,9 +309,11 @@ int main(int argc, char** argv)
     tagBufPos += sizeof(GlobalFrame);
 
     for(Camera& cam : cameras) {
+      auto camId = cam.GetID();
+      uint8_t found = count(camAprilTagDisabled.begin(), camAprilTagDisabled.end(), camId);
+      if(found) continue;
       if(!cam.GetTagDetectionCount()) continue;
       auto tagDetections = cam.GetTagDetections();
-      auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
       /*cam.PauseTagDetection();*/
       for(Camera::TagDetection &det : *tagDetections) {
@@ -261,29 +353,33 @@ int main(int argc, char** argv)
     mlBufPos += sizeof(GlobalFrame);
 
     for(Camera& cam : cameras) {
+      if(!cam.GetMLEnabled()) continue;
       if(!cam.GetMLDetectionCount()) continue;
-      auto mlDetections = cam.GetMLDetections();
+      cam.FreezeMLBufs();
       auto camId = cam.GetID();
       auto capTime = cam.GetCaptureTime();
-      for(PeripherySession::Detection &det : *mlDetections) {
-        if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
-        // Data to get shoved into buffer
-        MLDetectionFrame frame {
-          det.label, 
-          camId,
-          capTime,
-          det.x,
-          det.y,
-          det.width,
-          det.height,
-        };
-
-        // copy into buffer and increment counter
-        memset(mlBuffer + mlBufPos, 0x69, 2);
-        memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
-        mlBufPos += 2 + ML_FRAME_SIZE;
-
+      if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
+        auto mlDetections = cam.GetBoxDetections();
+        for(det::BoxObject &det : *mlDetections) {
+          if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
+          auto frame = generateMLFrame(det, camId, capTime);
+          // copy into buffer and increment counter
+          memset(mlBuffer + mlBufPos, 0x69, 2);
+          memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
+          mlBufPos += 2 + ML_FRAME_SIZE;
+        }
+      } else if(cam.GetMLDetectionMode() == Camera::MLMode::Pose) {
+        auto mlDetections = cam.GetPoseDetections();
+        for(det::PoseObject &det : *mlDetections) {
+          if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
+          auto frame = generateMLFrame(det, camId, capTime);
+          // copy into buffer and increment counter
+          memset(mlBuffer + mlBufPos, 0x69, 2);
+          memcpy(mlBuffer + mlBufPos + 2, &frame, ML_FRAME_SIZE);
+          mlBufPos += 2 + ML_FRAME_SIZE;
+        }
       }
+      cam.UnfreezeMLBufs();
     }
 
     mlFrameGlobal.size[0] = mlBufPos & 0x00ff;

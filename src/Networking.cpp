@@ -1,4 +1,4 @@
-#include "Networking.h"
+#include "Networking.hpp"
 
 // Return a page id for a configured network socket
 int Networking::GetSocket() {
