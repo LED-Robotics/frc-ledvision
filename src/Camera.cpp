@@ -151,7 +151,9 @@ void Camera::DrawPoseBox(cv::Mat frame, det::PoseObject &detection) {
   cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
   for(int i = 0; i < detection.kps.size(); i += 3) {
     cv::Point center(detection.kps[i], detection.kps[i+1]);
-    cv::circle(frame, center, detection.kps[i+2]*4, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
+    double size = detection.kps[i+2]*4;
+    if(size < 1) size = 1.0;
+    cv::circle(frame, center, size, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
   }
 }
 
@@ -239,7 +241,8 @@ void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
   #else
   if(!GetMLSessionAvailable()) return;
   auto session = mlSessions[0];
-  session.RunInference(frame, det::DetectionTypes::Box);
+  // std::cout << "AAAA" << std::endl;
+  session.RunInference(frame, det::DetectionTypes::Pose);
   auto newDets = session.GetPoseDetections();
   dets->clear();
   dets->insert(dets->begin(), newDets.begin(), newDets.end());

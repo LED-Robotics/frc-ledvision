@@ -12,41 +12,10 @@ PeripherySession::PeripherySession(uint32_t id, struct sockaddr_in session_addr,
   fd.events = POLLIN;
 }
 
-// Turn current buffer into a Detection
-// PeripherySession::Detection PeripherySession::ConstructDetection(uchar *buf) {
-//     Detection det{};
-//     det.label = (int)buf[2];
-//     double *temp;
-//     temp = (double*)(buf+3);
-//     det.x = *temp;
-//     temp++;
-//     det.y = *temp;
-//     temp++;
-//     det.width = *temp;
-//     temp++;
-//     det.height = *temp;
-//     temp++;
-//
-//     uchar* kpsTemp = (uchar*)temp;
-//     uchar kpsLenHigh = *kpsTemp;
-//     kpsTemp++;
-//     uchar kpsLenLow = *kpsTemp;
-//     unsigned int kpsLen = (kpsLenHigh << 8) + kpsLenLow;
-//     kpsTemp++;
-//     temp = (double*)kpsTemp;
-//
-//     for(int i = 0; i < kpsLen; i += 8) {
-//       det.kps.push_back(*temp);
-//       temp++;
-//     }
-//
-//     return det;
-// }
-
 uchar* PeripherySession::FillBoxObject(det::BoxObject *det, uchar *buf) {
   det->label = (int)buf[2];
-  double *temp;
-  temp = (double*)(buf+3);
+  float *temp;
+  temp = (float*)(buf+3);
   det->rect.x = *temp;
   temp++;
   det->rect.y = *temp;
@@ -62,11 +31,11 @@ uchar* PeripherySession::FillKeypoints(std::vector<float> &kps, uchar *buf) {
   uchar kpsLenHigh = *buf;
   buf++;
   uchar kpsLenLow = *buf;
-  unsigned int kpsLen = (kpsLenHigh << 8) + kpsLenLow;
   buf++;
+  unsigned int kpsLen = (kpsLenHigh << 8) + kpsLenLow;
   float *temp = (float*)buf;
 
-  for(int i = 0; i < kpsLen; i += 8) {
+  for(int i = 0; i < kpsLen; i += 4) {
     kps.push_back(*temp);
     temp++;
   }
@@ -138,7 +107,7 @@ bool PeripherySession::RunInference(cv::Mat frame, int type) {
             uchar detectionsHigh = response[sizeof(header)+2];
             uchar detectionsLow = response[sizeof(header) + 3];
             unsigned int totalDetections = (detectionsHigh << 8) + detectionsLow;
-            /*std::cout << "Detections: " << totalDetections << std::endl;*/
+            // std::cout << "Detections: " << totalDetections << std::endl;
             if(totalDetections) {
 
 

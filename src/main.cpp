@@ -150,11 +150,15 @@ void findInferenceServer() {
     std::string models = periphery.GetAvailableModels();
     std::cout << "Models: " << models << std::endl;
     if(strstr(models.c_str(), "reefscape_capped_v2") != NULL) {
+    // if(strstr(models.c_str(), "skeleton_large") != NULL) {
       std::cout << "reefscape_capped_v2 is present!" << std::endl;
+      // std::cout << "skeleton_large is present!" << std::endl;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     std::cout << "Switching to reefscape_capped_v2..." << std::endl;
+    // std::cout << "Switching to skeleton_large..." << std::endl;
     std::cout << "Switching result: " << (int)periphery.SwitchModel("reefscape_capped_v2") << std::endl;
+    // std::cout << "Switching result: " << (int)periphery.SwitchModel("skeleton_large") << std::endl;
   }
 }
 #endif
