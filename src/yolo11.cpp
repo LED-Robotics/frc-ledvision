@@ -210,7 +210,7 @@ void YOLO11::infer()
     cudaStreamSynchronize(this->stream);
 }
 
-void YOLO11::detectPostprocess(std::vector<DetectObject>& objs, float score_thres, float iou_thres, int topk)
+void YOLO11::detectPostprocess(std::vector<BoxObject>& objs, float score_thres, float iou_thres, int topk)
 {
     objs.clear();
     auto num_channels = this->output_bindings[0].dims.d[1];
@@ -274,7 +274,7 @@ void YOLO11::detectPostprocess(std::vector<DetectObject>& objs, float score_thre
         if (cnt >= topk) {
             break;
         }
-        DetectObject obj;
+        BoxObject obj;
         obj.rect  = bboxes[i];
         obj.prob  = scores[i];
         obj.label = labels[i];

@@ -114,7 +114,7 @@ void initCameras(cs::VideoMode config) {
   }
 }
 
-MLDetectionFrame generateMLFrame(det::DetectObject &det, uint8_t camId, uint32_t capTime) {
+MLDetectionFrame generateMLFrame(det::BoxObject &det, uint8_t camId, uint32_t capTime) {
   return {
     (uint8_t)det.label, 
     camId,
@@ -356,7 +356,7 @@ int main(int argc, char** argv)
       auto capTime = cam.GetCaptureTime();
       if(cam.GetMLDetectionMode() == Camera::MLMode::Detect) {
         auto mlDetections = cam.GetBoxDetections();
-        for(det::DetectObject &det : *mlDetections) {
+        for(det::BoxObject &det : *mlDetections) {
           if(mlBufPos + ML_FRAME_SIZE > mlBufSize) continue; // whoopsie, this would overflow, skip
           auto frame = generateMLFrame(det, camId, capTime);
           // copy into buffer and increment counter

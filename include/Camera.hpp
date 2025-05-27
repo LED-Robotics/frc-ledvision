@@ -50,13 +50,13 @@ class Camera {
     int GetTagDetectionCount();
 
     // Get current box ML Detection vector from Camera
-    std::vector<det::DetectObject>* GetBoxDetections();
+    std::vector<det::BoxObject>* GetBoxDetections();
 
     // Get current box ML Detection vector from Camera
     std::vector<det::PoseObject>* GetPoseDetections();
 
     // Get stale box ML Detection vector from Camera
-    std::vector<det::DetectObject>* GetInactiveBoxDetections();
+    std::vector<det::BoxObject>* GetInactiveBoxDetections();
 
     // Get stale box ML Detection vector from Camera
     std::vector<det::PoseObject>* GetInactivePoseDetections();
@@ -95,7 +95,7 @@ class Camera {
     void DrawAprilTagBox(cv::Mat frame, TagDetection* tag);
 
     // Draw ML detection on frame
-    void DrawDetectBox(cv::Mat frame, det::DetectObject &detection);
+    void DrawDetectBox(cv::Mat frame, det::BoxObject &detection);
 
     // Draw ML detection on frame
     void DrawPoseBox(cv::Mat frame, det::PoseObject &detection);
@@ -154,7 +154,7 @@ class Camera {
     void LoadModel(std::string path);
 
     // Run detect inference on frame
-    void RunInference(cv::Mat frame, std::vector<det::DetectObject> *dets);
+    void RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets);
 
     // Run pose inference on frame
     void RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets);
@@ -209,10 +209,10 @@ class Camera {
     int mlDetectionCount = 0;
     int mlMode = MLMode::Detect;
     // Buffers for inference
-    std::vector<det::DetectObject>* detVector1 = new std::vector<det::DetectObject>();
-    std::vector<det::DetectObject>* detVector2 = new std::vector<det::DetectObject>();
-    std::vector<det::DetectObject>* boxLabelVector = detVector1;
-    std::vector<det::DetectObject>* inactiveBoxLabelVector = detVector2;
+    std::vector<det::BoxObject>* detVector1 = new std::vector<det::BoxObject>();
+    std::vector<det::BoxObject>* detVector2 = new std::vector<det::BoxObject>();
+    std::vector<det::BoxObject>* boxLabelVector = detVector1;
+    std::vector<det::BoxObject>* inactiveBoxLabelVector = detVector2;
     std::vector<det::PoseObject>* poseVector1 = new std::vector<det::PoseObject>();
     std::vector<det::PoseObject>* poseVector2 = new std::vector<det::PoseObject>();
     std::vector<det::PoseObject>* poseLabelVector = poseVector1;

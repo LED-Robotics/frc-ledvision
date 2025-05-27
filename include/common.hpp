@@ -146,7 +146,7 @@ struct Binding {
 };
 #endif // CUDA_PRESENT
 
-struct DetectObject {
+struct BoxObject {
     cv::Rect_<float> rect;
     int              label = 0;
     float            prob  = 0.0;
@@ -157,6 +157,11 @@ struct PoseObject {
     int                label = 0;
     float              prob  = 0.0;
     std::vector<float> kps;
+};
+
+enum DetectionTypes {
+  Box,
+  Pose
 };
 
 struct PreParam {

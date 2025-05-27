@@ -18,13 +18,13 @@ public:
     void                 copy_from_Mat(const cv::Mat& image, cv::Size& size);
     void                 letterbox(const cv::Mat& image, cv::Mat& out, cv::Size& size);
     void                 infer();
-    /*void                 detectPostprocess(std::vector<DetectObject>& objs);*/
+    /*void                 detectPostprocess(std::vector<BoxObject>& objs);*/
 
-    void                 detectPostprocess(std::vector<DetectObject>& objs, float score_thres = 0.25f, float iou_thres = 0.65f, int topk = 100);
+    void                 detectPostprocess(std::vector<BoxObject>& objs, float score_thres = 0.25f, float iou_thres = 0.65f, int topk = 100);
     void                 posePostprocess(std::vector<PoseObject>& objs, float score_thres = 0.25f, float iou_thres = 0.65f, int topk = 100);
     // static void          draw_objects(const cv::Mat&                                image,
     //                                   cv::Mat&                                      res,
-    //                                   const std::vector<DetectObject>&                    objs,
+    //                                   const std::vector<BoxObject>&                    objs,
     //                                   const std::vector<std::string>&               CLASS_NAMES,
     //                                   const std::vector<std::vector<unsigned int>>& COLORS);
     int                  num_bindings;

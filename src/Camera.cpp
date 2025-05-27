@@ -1,4 +1,5 @@
 #include "Camera.hpp"
+#include "common.hpp"
 
 Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimator::Config estConfig) 
   : estimator{estConfig} {
@@ -45,7 +46,7 @@ int Camera::GetTagDetectionCount() {
 }
 
 // Get current box ML Detection vector from Camera
-std::vector<det::DetectObject>* Camera::GetBoxDetections() {
+std::vector<det::BoxObject>* Camera::GetBoxDetections() {
   return boxLabelVector;
 }
 
@@ -55,7 +56,7 @@ std::vector<det::PoseObject>* Camera::GetPoseDetections() {
 }
 
 // Get current box ML Detection vector from Camera
-std::vector<det::DetectObject>* Camera::GetInactiveBoxDetections() {
+std::vector<det::BoxObject>* Camera::GetInactiveBoxDetections() {
   return inactiveBoxLabelVector;
 }
 
@@ -139,7 +140,7 @@ void Camera::DrawAprilTagBox(cv::Mat frame, TagDetection* tag) {
 }
 
 // Draw ML detection on frame
-void Camera::DrawDetectBox(cv::Mat frame, det::DetectObject &detection) {
+void Camera::DrawDetectBox(cv::Mat frame, det::BoxObject &detection) {
   auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
   cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
 }
@@ -214,12 +215,18 @@ void Camera::LoadModel(std::string path) {
 }
 
 // Run detect inference on frame
-void Camera::RunInference(cv::Mat frame, std::vector<det::DetectObject> *dets) {
+void Camera::RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets) {
   #ifdef CUDA_PRESENT
   model->copy_from_Mat(frame);
   model->infer();
   model->detectPostprocess(*dets);
   #else
+  if(!GetMLSessionAvailable()) return;
+  auto session = mlSessions[0];
+  session.RunInference(frame, det::DetectionTypes::Box);
+  auto newDets = session.GetBoxDetections();
+  dets->clear();
+  dets->insert(dets->begin(), newDets.begin(), newDets.end());
   #endif
 }
 
@@ -230,6 +237,12 @@ void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
   model->infer();
   model->posePostprocess(*dets);
   #else
+  if(!GetMLSessionAvailable()) return;
+  auto session = mlSessions[0];
+  session.RunInference(frame, det::DetectionTypes::Box);
+  auto newDets = session.GetPoseDetections();
+  dets->clear();
+  dets->insert(dets->begin(), newDets.begin(), newDets.end());
   #endif
 }
 
@@ -362,7 +375,7 @@ void Camera::StartLabeller() {
       DrawAprilTagBox(labelled, &tag);
     }
     if(mlEnabled && GetMLDetectionMode() == MLMode::Detect) {
-      for(det::DetectObject& det : *boxLabelVector) {
+      for(det::BoxObject& det : *boxLabelVector) {
         DrawDetectBox(labelled, det);
       }
     } else if(mlEnabled && GetMLDetectionMode() == MLMode::Pose) {

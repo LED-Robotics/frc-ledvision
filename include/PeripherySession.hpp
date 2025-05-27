@@ -10,21 +10,24 @@ class PeripherySession {
     // Return session ID
     uint32_t GetID();
 
-    // Fill a DetectObject from buffer, return pointer to last byte
-    static uchar* FillDetectObject(det::DetectObject *object, uchar *buf);
+    // Fill a BoxObject from buffer, return pointer to last byte
+    static uchar* FillBoxObject(det::BoxObject *object, uchar *buf);
 
     // Fill a keypoints vector from buffer, return pointer to last byte
     static uchar* FillKeypoints(std::vector<float> &kps, uchar *buf);
 
-    // Format given buffer into a DetectObject
-    static det::DetectObject ConstructDetectObject(uchar *buf);
+    // Format given buffer into a BoxObject
+    static det::BoxObject ConstructBoxObject(uchar *buf);
 
     // Format given buffer into a PoseObject
     static det::PoseObject ConstructPoseObject(uchar *buf);
 
-    std::vector<det::DetectObject> RunDetectInference(cv::Mat frame);
+    std::vector<det::BoxObject> GetBoxDetections();
 
-    std::vector<det::PoseObject> RunPoseInference(cv::Mat frame);
+    std::vector<det::PoseObject> GetPoseDetections();
+
+    bool RunInference(cv::Mat frame, int type);
+
 
     bool valid = false;
 
@@ -34,6 +37,8 @@ class PeripherySession {
     int sock = -1;
     int timeoutfd = -1;
     struct pollfd fd;
+    std::vector<det::BoxObject> boxDets;
+    std::vector<det::PoseObject> poseDets;
 
     // Max datagram length for image stream
     constexpr static int MaxDatagram = 49151;
