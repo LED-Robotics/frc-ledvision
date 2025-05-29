@@ -1,8 +1,9 @@
 #include "Camera.hpp"
 #include "common.hpp"
 
-Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimator::Config estConfig) 
-  : estimator{estConfig} {
+Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config,
+               AprilTagPoseEstimator::Config estConfig)
+    : estimator{estConfig} {
   cam = camRef;
   // Configure AprilTag detector
   detector.AddFamily("tag36h11");
@@ -16,7 +17,8 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimato
   sink = new cs::CvSink{frc::CameraServer::GetVideo(*cam)};
   /*source = new cs::CvSource{"source" + id, config};*/
   cam->SetVideoMode(config);
-  source = frc::CameraServer::PutVideo(std::string_view("source" + std::to_string(id)), 160, 120);
+  source = frc::CameraServer::PutVideo(
+      std::string_view("source" + std::to_string(id)), 160, 120);
   /*frc::CameraServer::StartAutomaticCapture(*source);*/
 
   /*boxLabelVector = &boxDets1;*/
@@ -25,85 +27,73 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config, AprilTagPoseEstimato
   /*inactivePoseLabelVector = &poseDets2;*/
 }
 
-uint8_t Camera::GetID() {
-  return id;
-}
+uint8_t Camera::GetID() { return id; }
 
-std::vector<uint8_t> Camera::GetTargetTags() {
-  return targetTags;
-}
+std::vector<uint8_t> Camera::GetTargetTags() { return targetTags; }
 
 void Camera::SetTargetTags(std::vector<uint8_t> targets) {
   targetTags = targets;
 }
 
-std::vector<Camera::TagDetection>* Camera::GetTagDetections() {
+std::vector<Camera::TagDetection> *Camera::GetTagDetections() {
   return &tagDetections;
 }
 
-int Camera::GetTagDetectionCount() {
-  return tagDetectionCount;
-}
+int Camera::GetTagDetectionCount() { return tagDetectionCount; }
 
 // Get current box ML Detection vector from Camera
-std::vector<det::BoxObject>* Camera::GetBoxDetections() {
+std::vector<det::BoxObject> *Camera::GetBoxDetections() {
   return boxLabelVector;
 }
 
 // Get current box ML Detection vector from Camera
-std::vector<det::PoseObject>* Camera::GetPoseDetections() {
+std::vector<det::PoseObject> *Camera::GetPoseDetections() {
   return poseLabelVector;
 }
 
 // Get current box ML Detection vector from Camera
-std::vector<det::BoxObject>* Camera::GetInactiveBoxDetections() {
+std::vector<det::BoxObject> *Camera::GetInactiveBoxDetections() {
   return inactiveBoxLabelVector;
 }
 
 // Get current box ML Detection vector from Camera
-std::vector<det::PoseObject>* Camera::GetInactivePoseDetections() {
+std::vector<det::PoseObject> *Camera::GetInactivePoseDetections() {
   return inactivePoseLabelVector;
 }
 
 // Prevent buffer swapping
-void Camera::FreezeMLBufs() {
-  mlBufsFrozen = true;
-}
+void Camera::FreezeMLBufs() { mlBufsFrozen = true; }
 
 // Allow buffer swapping
-void Camera::UnfreezeMLBufs() {
-  mlBufsFrozen = false;
-}
+void Camera::UnfreezeMLBufs() { mlBufsFrozen = false; }
 
 // Switch toggle active buffer for reading
 void Camera::SwitchActiveMLBuf() {
-  if(mlBufsFrozen) return;
-  if(mlMode == MLMode::Detect) {
+  if (mlBufsFrozen)
+    return;
+  if (mlMode == MLMode::Detect) {
     boxLabelVector = boxLabelVector == detVector1 ? detVector2 : detVector1;
-    inactiveBoxLabelVector = inactiveBoxLabelVector == detVector1 ? detVector2 : detVector1;
+    inactiveBoxLabelVector =
+        inactiveBoxLabelVector == detVector1 ? detVector2 : detVector1;
   } else if (mlMode == MLMode::Pose) {
-    poseLabelVector = poseLabelVector == poseVector1 ? poseVector2 : poseVector1;
-    inactivePoseLabelVector = inactivePoseLabelVector == poseVector1 ? poseVector2 : poseVector1;
+    poseLabelVector =
+        poseLabelVector == poseVector1 ? poseVector2 : poseVector1;
+    inactivePoseLabelVector =
+        inactivePoseLabelVector == poseVector1 ? poseVector2 : poseVector1;
   }
 }
 
 // Get current ML detection mode
-int Camera::GetMLDetectionMode() {
-  return mlMode;
-}
+int Camera::GetMLDetectionMode() { return mlMode; }
 
 // Get current ML detection mode
-int Camera::GetMLEnabled() {
-  return mlEnabled;
-}
+int Camera::GetMLEnabled() { return mlEnabled; }
 
 // Set current ML detection mode
-void Camera::SetMLDetectionMode(int mode) {
-  mlMode = mode;
-}
+void Camera::SetMLDetectionMode(int mode) { mlMode = mode; }
 
 int Camera::GetMLDetectionCount() {
-  if(mlMode == MLMode::Detect) {
+  if (mlMode == MLMode::Detect) {
     return boxLabelVector->size();
   } else if (mlMode == MLMode::Pose) {
     return poseLabelVector->size();
@@ -112,141 +102,133 @@ int Camera::GetMLDetectionCount() {
   }
 }
 
-uint32_t Camera::GetCaptureTime() {
-  return captureTime;
-}
+uint32_t Camera::GetCaptureTime() { return captureTime; }
 
 // Stop overwriting the tag detection buffer
-void Camera::PauseTagDetection() {
-  pauseTagDetections = true;
-}
+void Camera::PauseTagDetection() { pauseTagDetections = true; }
 
 // Resume overwriting the tag detection buffer
-void Camera::ResumeTagDetection() {
-  pauseTagDetections = false;
-}
+void Camera::ResumeTagDetection() { pauseTagDetections = false; }
 
 // Draw AprilTag outline onto provided frame
-void Camera::DrawAprilTagBox(cv::Mat frame, TagDetection* tag) {
-  // Draw boxes around tags for video feed                
-  for(int i = 0; i < 4; i++) {
-      auto point1 = tag->corners[i];
-      int secondIndex = i == 3 ? 0 : i + 1;   // out of bounds adjust for last iteration
-      auto point2 = tag->corners[secondIndex];
-      cv::Point lineStart{(int)point1.x, (int)point1.y};
-      cv::Point lineEnd{(int)point2.x, (int)point2.y};
-      cv::line(frame, lineStart, lineEnd, cv::Scalar(0, 0, 255), 2, cv::LINE_4);
+void Camera::DrawAprilTagBox(cv::Mat frame, TagDetection *tag) {
+  // Draw boxes around tags for video feed
+  for (int i = 0; i < 4; i++) {
+    auto point1 = tag->corners[i];
+    int secondIndex =
+        i == 3 ? 0 : i + 1; // out of bounds adjust for last iteration
+    auto point2 = tag->corners[secondIndex];
+    cv::Point lineStart{(int)point1.x, (int)point1.y};
+    cv::Point lineEnd{(int)point2.x, (int)point2.y};
+    cv::line(frame, lineStart, lineEnd, cv::Scalar(0, 0, 255), 2, cv::LINE_4);
   }
 }
 
 // Draw ML detection on frame
 void Camera::DrawDetectBox(cv::Mat frame, det::BoxObject &detection) {
-  auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
+  auto color =
+      cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255,
+                 (detection.label == 2) * 255);
   cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
 }
 
 // Draw ML detection on frame
 void Camera::DrawPoseBox(cv::Mat frame, det::PoseObject &detection) {
-  auto color = cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255, (detection.label == 2) * 255);
+  auto color =
+      cv::Scalar((detection.label == 0) * 255, (detection.label == 1) * 255,
+                 (detection.label == 2) * 255);
   cv::rectangle(frame, detection.rect, color, 2, cv::LINE_4);
-  for(int i = 0; i < detection.kps.size(); i += 3) {
-    cv::Point center(detection.kps[i], detection.kps[i+1]);
-    double size = detection.kps[i+2]*4;
-    if(size < 1) size = 1.0;
-    cv::circle(frame, center, size, cv::Scalar(0, 0, 255), cv::FILLED, cv::LINE_8);
+  for (int i = 0; i < detection.kps.size(); i += 3) {
+    cv::Point center(detection.kps[i], detection.kps[i + 1]);
+    double size = detection.kps[i + 2] * 4;
+    if (size < 1)
+      size = 1.0;
+    cv::circle(frame, center, size, cv::Scalar(0, 0, 255), cv::FILLED,
+               cv::LINE_8);
   }
 }
 
-bool Camera::ValidPresent() {
-  return newFrame && validFrame;
-}
+bool Camera::ValidPresent() { return newFrame && validFrame; }
 
 // Check if ML frame is ready
-bool Camera::IsMLFrameAvailable() {
-  return mlFrameAvailable;
-}
+bool Camera::IsMLFrameAvailable() { return mlFrameAvailable; }
 
 // Check if ML frame is ready
-void Camera::SetMLFrameUnavailable() {
-  mlFrameAvailable = false;
-}
-
+void Camera::SetMLFrameUnavailable() { mlFrameAvailable = false; }
 
 // Return ML frame for inference
-cv::Mat Camera::GetMLFrame() {
-  return mlFrame;
-}
+cv::Mat Camera::GetMLFrame() { return mlFrame; }
 
 bool Camera::IsInferencePossible() {
-  #ifdef CUDA_PRESENT
+#ifdef CUDA_PRESENT
   return model != nullptr;
-  #else
+#else
   return mlSessions.size();
-  #endif
+#endif
 }
 
 // Disable ML
-void Camera::DisableInference() {
-  mlEnabled = false;  
-}
+void Camera::DisableInference() { mlEnabled = false; }
 
 // Enable ML (if model is loaded)
 void Camera::EnableInference() {
-  if(IsInferencePossible()) {
+  if (IsInferencePossible()) {
     mlEnabled = true;
   }
 }
 
 // Start posting labelled frames
 void Camera::DestroyModel() {
-  if(IsInferencePossible()) {
-    #ifdef CUDA_PRESENT
+  if (IsInferencePossible()) {
+#ifdef CUDA_PRESENT
     delete model;
     model = nullptr;
-    #endif
+#endif
   }
 }
 
 // Start posting labelled frames
 void Camera::LoadModel(std::string path) {
-  #ifdef CUDA_PRESENT
+#ifdef CUDA_PRESENT
   model = new YOLO11(path);
   model->make_pipe(true);
-  #else
-  #endif
+#else
+#endif
 }
 
 // Run detect inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets) {
-  #ifdef CUDA_PRESENT
+#ifdef CUDA_PRESENT
   model->copy_from_Mat(frame);
   model->infer();
   model->detectPostprocess(*dets);
-  #else
-  if(!GetMLSessionAvailable()) return;
+#else
+  if (!GetMLSessionAvailable())
+    return;
   auto session = mlSessions[0];
   session.RunInference(frame, det::DetectionTypes::Box);
   auto newDets = session.GetBoxDetections();
   dets->clear();
   dets->insert(dets->begin(), newDets.begin(), newDets.end());
-  #endif
+#endif
 }
 
 // Run pose inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
-  #ifdef CUDA_PRESENT
+#ifdef CUDA_PRESENT
   model->copy_from_Mat(frame);
   model->infer();
   model->posePostprocess(*dets);
-  #else
-  if(!GetMLSessionAvailable()) return;
+#else
+  if (!GetMLSessionAvailable())
+    return;
   auto session = mlSessions[0];
   // std::cout << "AAAA" << std::endl;
   session.RunInference(frame, det::DetectionTypes::Pose);
   auto newDets = session.GetPoseDetections();
   dets->clear();
   dets->insert(dets->begin(), newDets.begin(), newDets.end());
-  #endif
+#endif
 }
 
 void Camera::StartStream() {
@@ -259,8 +241,8 @@ void Camera::StartStream() {
 }
 
 void Camera::StartCollector() {
-  while(true) {
-    if(newFrame && !framePosted) {
+  while (true) {
+    if (newFrame && !framePosted) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
@@ -269,22 +251,21 @@ void Camera::StartCollector() {
 
     // Convert the current time to time since epoch
     auto duration = now.time_since_epoch();
-    unsigned long milliseconds
-      = std::chrono::duration_cast<std::chrono::milliseconds>(
-      duration).count();
-      
-    if(lastFail && milliseconds - lastFail > 3000) {
+    unsigned long milliseconds =
+        std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    if (lastFail && milliseconds - lastFail > 3000) {
       continue;
     }
     auto success = sink->GrabFrame(frame);
-    if(success == 0) {
+    if (success == 0) {
       lastFail = milliseconds;
     } else {
       lastFail = 0;
     }
     validFrame = !lastFail && !frame.empty();
-    if(validFrame) {
-      if(recording && !recordingLabelled) {
+    if (validFrame) {
+      if (recording && !recordingLabelled) {
         outputVideo << frame;
       }
       captureTime = milliseconds + success;
@@ -298,14 +279,14 @@ void Camera::StartCollector() {
 }
 
 void Camera::StartGrayscaleConverter() {
-  while(true) {
-    if(!ValidPresent()) {
+  while (true) {
+    if (!ValidPresent()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
-    if(!grayAvailable) {
+    if (!grayAvailable) {
       cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-      if(!mlFrameAvailable) {
+      if (!mlFrameAvailable) {
         mlFrame = frame.clone();
         mlFrameAvailable = true;
       }
@@ -316,28 +297,30 @@ void Camera::StartGrayscaleConverter() {
 }
 
 void Camera::StartProcessor() {
-  while(true) {
-    if(!ValidPresent() || !grayAvailable) {
+  while (true) {
+    if (!ValidPresent() || !grayAvailable) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
-    if(!frameProcessed) {
-      if(!pauseTagDetections) {
+    if (!frameProcessed) {
+      if (!pauseTagDetections) {
         tagDetections.clear();
       }
       auto aprilTags = frc::AprilTagDetect(detector, gray);
-      for(const frc::AprilTagDetection* tag : aprilTags) {
+      for (const frc::AprilTagDetection *tag : aprilTags) {
         uint8_t id = tag->GetId();
         uint8_t found = count(targetTags.begin(), targetTags.end(), id);
-        if(!found) continue;  // tag not in request array, skip
-        auto transform = estimator.Estimate(*tag);  // Estimate Transform3d of tag
+        if (!found)
+          continue; // tag not in request array, skip
+        auto transform =
+            estimator.Estimate(*tag); // Estimate Transform3d of tag
         std::vector<AprilTagDetection::Point> corners;
-        // Generate rectangle for labelling tag 
-        for(int i = 0; i < 4; i++) {
-            auto point = tag->GetCorner(i);
-            corners.push_back(point);
+        // Generate rectangle for labelling tag
+        for (int i = 0; i < 4; i++) {
+          auto point = tag->GetCorner(i);
+          corners.push_back(point);
         }
-        if(!pauseTagDetections) {
+        if (!pauseTagDetections) {
           TagDetection data{id, corners, transform};
           tagDetections.push_back(data);
         }
@@ -349,18 +332,18 @@ void Camera::StartProcessor() {
 }
 
 void Camera::InferenceThread() {
-  while(true) {
-    if(!mlEnabled) {
+  while (true) {
+    if (!mlEnabled) {
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       continue;
     }
-    if(!IsMLFrameAvailable()) {
+    if (!IsMLFrameAvailable()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
-    if(GetMLDetectionMode() == MLMode::Detect) {
+    if (GetMLDetectionMode() == MLMode::Detect) {
       RunInference(mlFrame, GetInactiveBoxDetections());
-    } else if(GetMLDetectionMode() == MLMode::Pose) {
+    } else if (GetMLDetectionMode() == MLMode::Pose) {
       RunInference(mlFrame, GetInactivePoseDetections());
     }
     SwitchActiveMLBuf();
@@ -369,41 +352,41 @@ void Camera::InferenceThread() {
 }
 
 void Camera::StartLabeller() {
-  while(true) {
-    if(!ValidPresent() || !frameProcessed) {
+  while (true) {
+    if (!ValidPresent() || !frameProcessed) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
-    for(TagDetection& tag : tagDetections) {
+    for (TagDetection &tag : tagDetections) {
       DrawAprilTagBox(labelled, &tag);
     }
-    if(mlEnabled && GetMLDetectionMode() == MLMode::Detect) {
-      for(det::BoxObject& det : *boxLabelVector) {
+    if (mlEnabled && GetMLDetectionMode() == MLMode::Detect) {
+      for (det::BoxObject &det : *boxLabelVector) {
         DrawDetectBox(labelled, det);
       }
-    } else if(mlEnabled && GetMLDetectionMode() == MLMode::Pose) {
-      for(det::PoseObject& det : *poseLabelVector) {
+    } else if (mlEnabled && GetMLDetectionMode() == MLMode::Pose) {
+      for (det::PoseObject &det : *poseLabelVector) {
         DrawPoseBox(labelled, det);
       }
     }
-    cv::putText(labelled, //target image
-      "ID: " + std::to_string(GetID()), //text
-      cv::Point(10, labelled.rows / 8), //top-left position
-      cv::FONT_HERSHEY_DUPLEX,
-      2.0,
-      CV_RGB(255, 255, 255), //font color
-      2);
+    cv::putText(labelled,                         // target image
+                "ID: " + std::to_string(GetID()), // text
+                cv::Point(10, labelled.rows / 8), // top-left position
+                cv::FONT_HERSHEY_DUPLEX, 2.0,
+                CV_RGB(255, 255, 255), // font color
+                2);
     frameLabelled = true;
   }
 }
 
 void Camera::StartPosting() {
-  while(true) {
-    if(!ValidPresent() || !frameLabelled) {
+  while (true) {
+    if (!ValidPresent() || !frameLabelled) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
-    if(recording && recordingLabelled) outputVideo << labelled;
+    if (recording && recordingLabelled)
+      outputVideo << labelled;
     cv::Mat resized;
     cv::resize(labelled, resized, cv::Size(160, 120));
     source.PutFrame(resized);
@@ -427,9 +410,10 @@ void Camera::StartInferencing(PeripherySession session) {
 bool Camera::StartRecording(std::string path, bool labelled) {
   recordState = true;
   auto config = cam->GetVideoMode();
-  if(!recording && recordState) {
+  if (!recording && recordState) {
     recordingLabelled = labelled;
-    outputVideo.open(path, cv::VideoWriter::fourcc('M','J','P','G'), 30, {config.width, config.height});
+    outputVideo.open(path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30,
+                     {config.width, config.height});
     recording = outputVideo.isOpened();
     return recording;
   }
@@ -438,7 +422,7 @@ bool Camera::StartRecording(std::string path, bool labelled) {
 
 bool Camera::StopRecording() {
   recordState = false;
-  if(!recordState && recording) {
+  if (!recordState && recording) {
     outputVideo.release();
     recording = outputVideo.isOpened();
     return recording;
@@ -447,12 +431,12 @@ bool Camera::StopRecording() {
 }
 
 #ifndef CUDA_PRESENT
-bool Camera::GetMLSessionAvailable() {
-  return mlSessions.size();
-}
+bool Camera::GetMLSessionAvailable() { return mlSessions.size(); }
 
 uint32_t Camera::GetMLSessionID() {
-  if(GetMLSessionAvailable()) return mlSessions[0].GetID();
-  else return 0;
+  if (GetMLSessionAvailable())
+    return mlSessions[0].GetID();
+  else
+    return 0;
 }
 #endif
