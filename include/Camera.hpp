@@ -9,12 +9,17 @@
 #include <thread>
 #include <vector>
 
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
 #include "yolo11.hpp"
-#else
+
+#elif defined(USING_ONNX)
+#include "onnxruntime_cxx_api.h"
+
+#elif defined(USING_REMOTE)
 #include "PeripherySession.hpp"
-#include "common.hpp"
 #endif
+
+#include "common.hpp"
 
 using namespace frc;
 
@@ -125,7 +130,7 @@ public:
   // Start ML thread
   void StartInferencing(std::string path);
 
-#ifndef CUDA_PRESENT
+#if defined(USING_REMOTE)
   void StartInferencing(PeripherySession session);
 #endif
 
@@ -220,11 +225,11 @@ private:
   std::vector<det::PoseObject> *poseLabelVector = poseVector1;
   std::vector<det::PoseObject> *inactivePoseLabelVector = poseVector2;
 
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
   // Pointer for on-device ML model
   YOLO11 *model = nullptr;
 
-#else
+#elif defined(USING_REMOTE)
   // Remote inference session
   std::vector<PeripherySession> mlSessions;
 

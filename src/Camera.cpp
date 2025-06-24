@@ -18,7 +18,7 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config,
   /*source = new cs::CvSource{"source" + id, config};*/
   cam->SetVideoMode(config);
   source = frc::CameraServer::PutVideo(
-      std::string_view("source" + std::to_string(id)), 160, 120);
+      std::string_view("source" + std::to_string(id)), 640, 480);
   /*frc::CameraServer::StartAutomaticCapture(*source);*/
 
   /*boxLabelVector = &boxDets1;*/
@@ -160,9 +160,9 @@ void Camera::SetMLFrameUnavailable() { mlFrameAvailable = false; }
 cv::Mat Camera::GetMLFrame() { return mlFrame; }
 
 bool Camera::IsInferencePossible() {
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
   return model != nullptr;
-#else
+#elif defined(USING_REMOTE)
   return mlSessions.size();
 #endif
 }
@@ -180,7 +180,7 @@ void Camera::EnableInference() {
 // Start posting labelled frames
 void Camera::DestroyModel() {
   if (IsInferencePossible()) {
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
     delete model;
     model = nullptr;
 #endif
@@ -189,20 +189,20 @@ void Camera::DestroyModel() {
 
 // Start posting labelled frames
 void Camera::LoadModel(std::string path) {
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
   model = new YOLO11(path);
   model->make_pipe(true);
-#else
+#elif defined(USING_REMOTE)
 #endif
 }
 
 // Run detect inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets) {
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
   model->copy_from_Mat(frame);
   model->infer();
   model->detectPostprocess(*dets);
-#else
+#elif defined(USING_REMOTE)
   if (!GetMLSessionAvailable())
     return;
   auto session = mlSessions[0];
@@ -215,11 +215,11 @@ void Camera::RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets) {
 
 // Run pose inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
   model->copy_from_Mat(frame);
   model->infer();
   model->posePostprocess(*dets);
-#else
+#elif defined(USING_REMOTE)
   if (!GetMLSessionAvailable())
     return;
   auto session = mlSessions[0];
@@ -388,7 +388,7 @@ void Camera::StartPosting() {
     if (recording && recordingLabelled)
       outputVideo << labelled;
     cv::Mat resized;
-    cv::resize(labelled, resized, cv::Size(160, 120));
+    cv::resize(labelled, resized, cv::Size(640, 480));
     source.PutFrame(resized);
     newFrame = false;
     frameProcessed = true;
@@ -400,7 +400,7 @@ void Camera::StartInferencing(std::string path) {
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
 }
 
-#ifndef CUDA_PRESENT
+#if defined(USING_REMOTE)
 void Camera::StartInferencing(PeripherySession session) {
   mlSessions.push_back(session);
   mlThread = std::move(std::thread(&Camera::InferenceThread, this));
@@ -430,7 +430,7 @@ bool Camera::StopRecording() {
   return true;
 }
 
-#ifndef CUDA_PRESENT
+#if defined(USING_REMOTE)
 bool Camera::GetMLSessionAvailable() { return mlSessions.size(); }
 
 uint32_t Camera::GetMLSessionID() {

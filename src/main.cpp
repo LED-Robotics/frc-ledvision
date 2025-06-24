@@ -10,7 +10,7 @@
 #include "Camera.hpp"
 #include "common.hpp"
 
-#ifndef CUDA_PRESENT
+#ifdef USING_REMOTE
 #include "PeripheryClient.hpp"
 #endif
 
@@ -42,7 +42,7 @@ uint32_t mlBufSize = 0;
 uint8_t camsInferencing = 0xff;
 std::vector<uint8_t> camMLDisabled;
 
-#ifndef CUDA_PRESENT
+#ifdef USING_REMOTE
 PeripheryClient periphery{};
 #endif
 
@@ -132,7 +132,7 @@ MLDetectionFrame generateMLFrame(det::PoseObject &det, uint8_t camId,
   };
 }
 
-#ifndef CUDA_PRESENT
+#ifdef USING_REMOTE
 void findInferenceServer() {
   int result = 0;
   while (result != 1) {
@@ -143,18 +143,18 @@ void findInferenceServer() {
     }
     std::string models = periphery.GetAvailableModels();
     std::cout << "Models: " << models << std::endl;
-    if (strstr(models.c_str(), "reefscape_capped_v2") != NULL) {
-      // if(strstr(models.c_str(), "skeleton_large") != NULL) {
-      std::cout << "reefscape_capped_v2 is present!" << std::endl;
-      // std::cout << "skeleton_large is present!" << std::endl;
+    // if (strstr(models.c_str(), "reefscape_capped_v2") != NULL) {
+      if(strstr(models.c_str(), "skeleton_large") != NULL) {
+      // std::cout << "reefscape_capped_v2 is present!" << std::endl;
+      std::cout << "skeleton_large is present!" << std::endl;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    std::cout << "Switching to reefscape_capped_v2..." << std::endl;
-    // std::cout << "Switching to skeleton_large..." << std::endl;
-    std::cout << "Switching result: "
-              << (int)periphery.SwitchModel("reefscape_capped_v2") << std::endl;
-    // std::cout << "Switching result: " <<
-    // (int)periphery.SwitchModel("skeleton_large") << std::endl;
+    // std::cout << "Switching to reefscape_capped_v2..." << std::endl;
+    std::cout << "Switching to skeleton_large..." << std::endl;
+    // std::cout << "Switching result: "
+              // << (int)periphery.SwitchModel("reefscape_capped_v2") << std::endl;
+    std::cout << "Switching result: " <<
+    (int)periphery.SwitchModel("skeleton_large") << std::endl;
   }
 }
 #endif
@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
   auto table = inst.GetTable("/jetson");
 
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
-#ifdef CUDA_PRESENT
+#ifdef USING_CUDA
   std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";
   bool modelFound = false;
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
   for (Camera &cam : cameras) {
     camIds.push_back(cam.GetID());
     cam.StartStream();
-#ifdef CUDA_PRESENT
+#ifdef USING_CUDA
     if (modelFound) {
       cam.SetMLDetectionMode(Camera::MLMode::Detect);
       cam.StartInferencing(enginePath);
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
 #endif
   }
 
-#ifndef CUDA_PRESENT
+#ifdef USING_REMOTE
   // Handle ML server communications
   std::thread inferenceSpawner([&] {
     while (true) {
@@ -229,6 +229,7 @@ int main(int argc, char **argv) {
       for (Camera &cam : cameras) {
         if (!cam.GetMLSessionAvailable()) {
           cam.StartInferencing(periphery.CreateInferenceSession());
+          cam.SetMLDetectionMode(Camera::MLMode::Pose);
         } else {
           bool sessionAvailable =
               periphery.SessionAvailable(cam.GetMLSessionID());

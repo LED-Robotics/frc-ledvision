@@ -22,13 +22,6 @@ set(TensorRT_LIBRARIES /usr/lib/x86_64-linux-gnu)
 message(STATUS "TensorRT Libs: \n${TensorRT_LIBRARIES}\n")
 message(STATUS "TensorRT Headers: \n${TensorRT_INCLUDE_DIRS}\n")
 
-if(CUDA_FOUND)
-  message("Found CUDA")
-else()
-  message("Couldn't find CUDA")
-endif()
-
-
 # OpenCV
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV Libs: \n${OpenCV_LIBS}\n")
@@ -52,24 +45,49 @@ if(CUDA_FOUND)
     src/yolo11.cpp
     include/yolo11.hpp
   )
+  set(USING_CUDA TRUE)
 else()
-  set(SOURCE_FILES 
-    ${SOURCE_FILES}
-    src/Networking.cpp
-    src/PeripheryClient.cpp
-    src/PeripherySession.cpp
-    include/Networking.hpp
-    include/PeripheryClient.hpp
-    include/PeripherySession.hpp
-  )
+  
+  if(NOT ONNXRUNTIME_ROOT) 
+    if(WIN32) 
+      set(ONNXRUNTIME_ROOT "C:/ProgramFiles/onnxruntime") 
+    else() 
+      set(ONNXRUNTIME_ROOT "/usr/local") 
+    endif()
+  endif()
+
+  if(EXISTS ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so)
+    include_directories("${ONNXRUNTIME_ROOT}/include"                           # Pre-built package
+                    "${ONNXRUNTIME_ROOT}/include/onnxruntime"               # Linux local install to /usr/local
+                    "${ONNXRUNTIME_ROOT}/include/onnxruntime/core/session") # Windows local install
+
+    link_directories("${ONNXRUNTIME_ROOT}/lib")
+    set(USING_ONNX TRUE)
+  else()
+    set(SOURCE_FILES 
+        ${SOURCE_FILES}
+        src/Networking.cpp
+        src/PeripheryClient.cpp
+        src/PeripherySession.cpp
+        include/Networking.hpp
+        include/PeripheryClient.hpp
+        include/PeripherySession.hpp
+      )
+    set(USING_REMOTE TRUE)
+  endif()
 endif()
 
 
 add_executable(frc_ledvision ${SOURCE_FILES})
 
 target_link_libraries(frc_ledvision cameraserver ntcore cscore wpiutil wpimath apriltag)
-if(CUDA_FOUND)
+if(USING_CUDA)
   target_link_libraries(frc_ledvision nvinfer nvinfer_plugin nvonnxparser ${CUDA_LIBRARIES} ${OpenCV_LIBS})
-  target_compile_definitions(frc_ledvision PUBLIC CUDA_PRESENT=$(CUDA_FOUND))
+  target_compile_definitions(frc_ledvision PUBLIC USING_CUDA=$(CUDA_FOUND))
+elseif(USING_ONNX)
+  target_link_libraries(frc_ledvision ${OpenCV_LIBS} ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so)
+  target_compile_definitions(frc_ledvision PUBLIC USING_ONNX=$(USING_ONNX))
+else()
+  target_compile_definitions(frc_ledvision PUBLIC USING_REMOTE=$(USING_REMOTE))
 endif()
 
