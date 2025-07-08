@@ -44,7 +44,7 @@ uint32_t mlBufSize = 0;
 uint8_t camsInferencing = 0xff;
 std::vector<uint8_t> camMLDisabled;
 
-#ifdef USING_REMOTE
+#if defined(USING_REMOTE)
 PeripheryClient periphery{};
 #endif
 
@@ -134,7 +134,7 @@ MLDetectionFrame generateMLFrame(det::PoseObject &det, uint8_t camId,
   };
 }
 
-#ifdef USING_REMOTE
+#if defined(USING_REMOTE)
 void findInferenceServer() {
   int result = 0;
   while (result != 1) {
@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
   auto table = inst.GetTable("/jetson");
 
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
-#ifdef USING_CUDA
+#if defined(USING_CUDA)
   std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";
   bool modelFound = false;
@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
   for (Camera &cam : cameras) {
     camIds.push_back(cam.GetID());
     cam.StartStream();
-#ifdef USING_CUDA
+#if defined(USING_CUDA)
     if (modelFound) {
       cam.SetMLDetectionMode(Camera::MLMode::Detect);
       cam.StartInferencing(enginePath);
@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
 #endif
   }
 
-#ifdef USING_REMOTE
+#if defined(USING_REMOTE)
   // Handle ML server communications
   std::thread inferenceSpawner([&] {
     while (true) {
