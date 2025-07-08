@@ -1,14 +1,13 @@
 #pragma once
 
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
 #include "NvInfer.h"
 #endif
 #include "opencv2/opencv.hpp"
 #include <sys/stat.h>
 #include <unistd.h>
 
-#ifdef CUDA_PRESENT
-
+#if defined(USING_CUDA)
 #define CHECK(call)                                                            \
   do {                                                                         \
     const cudaError_t error_code = call;                                       \
@@ -130,7 +129,7 @@ inline bool IsFolder(const std::string &path) {
 }
 
 namespace det {
-#ifdef CUDA_PRESENT
+#if defined(USING_CUDA)
 struct Binding {
   size_t size = 1;
   size_t dsize = 1;

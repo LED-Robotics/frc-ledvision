@@ -10,7 +10,9 @@
 #include "Camera.hpp"
 #include "common.hpp"
 
-#ifdef USING_REMOTE
+#if defined(USING_CUDA)
+#include "yolo11-tensorrt.hpp"
+#elif defined(USING_REMOTE)
 #include "PeripheryClient.hpp"
 #endif
 
@@ -196,7 +198,7 @@ int main(int argc, char **argv) {
   bool modelFound = false;
   if (!IsPathExist(enginePath)) {
     if (IsPathExist(onnxPath)) {
-      YOLO11::generateEngine(onnxPath);
+      YOLO11_CUDA::generateEngine(onnxPath);
       modelFound = IsPathExist(enginePath);
     }
   } else {

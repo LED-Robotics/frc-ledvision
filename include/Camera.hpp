@@ -10,7 +10,7 @@
 #include <vector>
 
 #if defined(USING_CUDA)
-#include "yolo11.hpp"
+#include "yolo11-tensorrt.hpp"
 
 #elif defined(USING_ONNX)
 #include "onnxruntime_cxx_api.h"
@@ -227,7 +227,7 @@ private:
 
 #if defined(USING_CUDA)
   // Pointer for on-device ML model
-  YOLO11 *model = nullptr;
+  YOLO11_CUDA *model = nullptr;
 
 #elif defined(USING_REMOTE)
   // Remote inference session

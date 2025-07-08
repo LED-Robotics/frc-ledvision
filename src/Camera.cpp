@@ -190,7 +190,7 @@ void Camera::DestroyModel() {
 // Start posting labelled frames
 void Camera::LoadModel(std::string path) {
 #if defined(USING_CUDA)
-  model = new YOLO11(path);
+  model = new YOLO11_CUDA(path);
   model->make_pipe(true);
 #elif defined(USING_REMOTE)
 #endif

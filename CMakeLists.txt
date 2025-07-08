@@ -42,8 +42,9 @@ if(CUDA_FOUND)
   include_directories(include ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
   set(SOURCE_FILES 
     ${SOURCE_FILES}
-    src/yolo11.cpp
+    src/yolo11-tensorrt.cpp
     include/yolo11.hpp
+    include/yolo11-tensorrt.hpp
   )
   set(USING_CUDA TRUE)
 else()

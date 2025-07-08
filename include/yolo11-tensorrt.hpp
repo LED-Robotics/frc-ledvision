@@ -3,14 +3,15 @@
 #include "NvInferPlugin.h"
 #include "NvOnnxParser.h"
 #include "common.hpp"
+#include "yolo11.hpp"
 #include <fstream>
 using namespace det;
 using namespace nvonnxparser;
 
-class YOLO11 {
+class YOLO11_CUDA : public YOLO11 {
 public:
-  explicit YOLO11(const std::string &engine_file_path);
-  ~YOLO11();
+  explicit YOLO11_CUDA(const std::string &engine_file_path);
+  ~YOLO11_CUDA();
 
   void make_pipe(bool warmup = true);
   static bool generateEngine(std::string onnxPath);

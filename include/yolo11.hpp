@@ -6,22 +6,21 @@ using namespace det;
 
 class YOLO11 {
 public:
-  explicit YOLO11(const std::string &engine_file_path);
-  ~YOLO11();
+  explicit YOLO11() {};
+  ~YOLO11() {};
 
-  virtual void make_pipe(bool warmup = true);
-  virtual static bool generateEngine(std::string onnxPath);
-  virtual void copy_from_Mat(const cv::Mat &image);
-  virtual void copy_from_Mat(const cv::Mat &image, cv::Size &size);
-  virtual void letterbox(const cv::Mat &image, cv::Mat &out, cv::Size &size);
-  virtual void infer();
+  virtual void make_pipe(bool warmup = true) {};
+  virtual void copy_from_Mat(const cv::Mat &image) {};
+  virtual void copy_from_Mat(const cv::Mat &image, cv::Size &size) {};
+  virtual void letterbox(const cv::Mat &image, cv::Mat &out, cv::Size &size) {};
+  virtual void infer() {};
   /*void                 detectPostprocess(std::vector<BoxObject>& objs);*/
 
   virtual void detectPostprocess(std::vector<BoxObject> &objs,
                          float score_thres = 0.25f, float iou_thres = 0.65f,
-                         int topk = 100);
+                         int topk = 100) {};
   virtual void posePostprocess(std::vector<PoseObject> &objs, float score_thres = 0.25f,
-                       float iou_thres = 0.65f, int topk = 100);
+                       float iou_thres = 0.65f, int topk = 100) {};
   // static void          draw_objects(const cv::Mat& image,
   //                                   cv::Mat& res, const
   //                                   std::vector<BoxObject>& objs, const

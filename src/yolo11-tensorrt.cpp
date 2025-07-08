@@ -1,6 +1,6 @@
-#include "yolo11.hpp"
+#include "yolo11-tensorrt.hpp"
 
-YOLO11::YOLO11(const std::string &engine_file_path) {
+YOLO11_CUDA::YOLO11_CUDA(const std::string &engine_file_path) {
   std::ifstream file(engine_file_path, std::ios::binary);
   assert(file.good());
   file.seekg(0, std::ios::end);
@@ -52,7 +52,7 @@ YOLO11::YOLO11(const std::string &engine_file_path) {
   }
 }
 
-YOLO11::~YOLO11() {
+YOLO11_CUDA::~YOLO11_CUDA() {
   delete this->context;
   delete this->engine;
   delete this->runtime;
@@ -65,7 +65,7 @@ YOLO11::~YOLO11() {
     CHECK(cudaFreeHost(ptr));
   }
 }
-void YOLO11::make_pipe(bool warmup) {
+void YOLO11_CUDA::make_pipe(bool warmup) {
 
   for (auto &bindings : this->input_bindings) {
     void *d_ptr;
@@ -100,7 +100,7 @@ void YOLO11::make_pipe(bool warmup) {
   }
 }
 
-bool YOLO11::generateEngine(std::string onnxPath) {
+bool YOLO11_CUDA::generateEngine(std::string onnxPath) {
 
   Logger logger{nvinfer1::ILogger::Severity::kERROR};
   nvinfer1::IBuilder *builder = nvinfer1::createInferBuilder(logger);
@@ -137,7 +137,7 @@ bool YOLO11::generateEngine(std::string onnxPath) {
   return true;
 }
 
-void YOLO11::letterbox(const cv::Mat &image, cv::Mat &out, cv::Size &size) {
+void YOLO11_CUDA::letterbox(const cv::Mat &image, cv::Mat &out, cv::Size &size) {
   const float inp_h = size.height;
   const float inp_w = size.width;
   float height = image.rows;
@@ -176,7 +176,7 @@ void YOLO11::letterbox(const cv::Mat &image, cv::Mat &out, cv::Size &size) {
   this->pparam.width = width;
 }
 
-void YOLO11::copy_from_Mat(const cv::Mat &image) {
+void YOLO11_CUDA::copy_from_Mat(const cv::Mat &image) {
   cv::Mat nchw;
   auto &in_binding = this->input_bindings[0];
   int width = in_binding.dims.d[3];
@@ -192,7 +192,7 @@ void YOLO11::copy_from_Mat(const cv::Mat &image) {
                         this->stream));
 }
 
-void YOLO11::copy_from_Mat(const cv::Mat &image, cv::Size &size) {
+void YOLO11_CUDA::copy_from_Mat(const cv::Mat &image, cv::Size &size) {
   cv::Mat nchw;
   auto &in_binding = this->input_bindings[0];
   this->letterbox(image, nchw, size);
@@ -204,7 +204,7 @@ void YOLO11::copy_from_Mat(const cv::Mat &image, cv::Size &size) {
                         this->stream));
 }
 
-void YOLO11::infer() {
+void YOLO11_CUDA::infer() {
   this->context->enqueueV3(this->stream);
   for (int i = 0; i < this->num_outputs; i++) {
     size_t osize =
@@ -216,7 +216,7 @@ void YOLO11::infer() {
   cudaStreamSynchronize(this->stream);
 }
 
-void YOLO11::detectPostprocess(std::vector<BoxObject> &objs, float score_thres,
+void YOLO11_CUDA::detectPostprocess(std::vector<BoxObject> &objs, float score_thres,
                                float iou_thres, int topk) {
   objs.clear();
   auto num_channels = this->output_bindings[0].dims.d[1];
@@ -291,7 +291,7 @@ void YOLO11::detectPostprocess(std::vector<BoxObject> &objs, float score_thres,
   }
 }
 
-void YOLO11::posePostprocess(std::vector<PoseObject> &objs, float score_thres,
+void YOLO11_CUDA::posePostprocess(std::vector<PoseObject> &objs, float score_thres,
                              float iou_thres, int topk) {
   objs.clear();
   auto num_channels = this->output_bindings[0].dims.d[1];
