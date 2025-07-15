@@ -12,6 +12,8 @@
 
 #if defined(USING_CUDA)
 #include "yolo11-tensorrt.hpp"
+#elif defined(USING_ONNX)
+#include "yolo11-onnx.hpp"
 #elif defined(USING_REMOTE)
 #include "PeripheryClient.hpp"
 #endif

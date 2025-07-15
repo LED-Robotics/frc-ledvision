@@ -38,17 +38,20 @@ set(SOURCE_FILES
   include/common.hpp
 )
 
-if(CUDA_FOUND)
-  include_directories(include ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
-  set(SOURCE_FILES 
-    ${SOURCE_FILES}
-    src/yolo11-tensorrt.cpp
-    include/yolo11.hpp
-    include/yolo11-tensorrt.hpp
-  )
-  set(USING_CUDA TRUE)
-else()
-  
+macro(setupCUDA)
+  if(CUDA_FOUND)
+    include_directories(include ${CUDA_INCLUDE_DIRS} ${TensorRT_INCLUDE_DIRS})
+    set(SOURCE_FILES 
+      ${SOURCE_FILES}
+      src/yolo11-tensorrt.cpp
+      include/yolo11.hpp
+      include/yolo11-tensorrt.hpp
+    )
+    set(USING_CUDA TRUE)
+  endif()
+  endMacro()
+
+macro(setupONNX)
   if(NOT ONNXRUNTIME_ROOT) 
     if(WIN32) 
       set(ONNXRUNTIME_ROOT "C:/ProgramFiles/onnxruntime") 
@@ -63,8 +66,17 @@ else()
                     "${ONNXRUNTIME_ROOT}/include/onnxruntime/core/session") # Windows local install
 
     link_directories("${ONNXRUNTIME_ROOT}/lib")
+    set(SOURCE_FILES 
+      ${SOURCE_FILES}
+      src/yolo11-onnx.cpp
+      include/yolo11.hpp
+      include/yolo11-onnx.hpp
+    )
     set(USING_ONNX TRUE)
-  else()
+  endif()
+  endMacro()
+
+macro(setupRemote)
     set(SOURCE_FILES 
         ${SOURCE_FILES}
         src/Networking.cpp
@@ -75,9 +87,36 @@ else()
         include/PeripherySession.hpp
       )
     set(USING_REMOTE TRUE)
+endMacro()
+
+option(PREFER_CUDA OFF)
+option(PREFER_ONNX OFF)
+option(PREFER_REMOTE OFF)
+
+set(PREFERENCED (PREFER_CUDA OR PREFER_ONNX OR PREFER_REMOTE))
+
+if(PREFERENCED)
+# Explicit preferencing
+  if(PREFER_CUDA)
+    setupCUDA()
+  elseif(PREFER_ONNX)
+    setupONNX()
+  elseif(PREFER_REMOTE)
+    setupRemote()
+  endif()
+
+# Default preferencing
+else()
+  if(CUDA_FOUND)
+    setupCUDA()
+  else()
+    setupONNX()
   endif()
 endif()
 
+if(NOT (USING_CUDA OR USING_ONNX))
+  setupRemote()
+endif()
 
 add_executable(frc_ledvision ${SOURCE_FILES})
 
