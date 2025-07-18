@@ -137,45 +137,6 @@ bool YOLO11_CUDA::generateEngine(std::string onnxPath) {
   return true;
 }
 
-void YOLO11_CUDA::letterbox(const cv::Mat &image, cv::Mat &out, cv::Size &size) {
-  const float inp_h = size.height;
-  const float inp_w = size.width;
-  float height = image.rows;
-  float width = image.cols;
-
-  float r = std::min(inp_h / height, inp_w / width);
-  int padw = std::round(width * r);
-  int padh = std::round(height * r);
-
-  cv::Mat tmp;
-  if ((int)width != padw || (int)height != padh) {
-    cv::resize(image, tmp, cv::Size(padw, padh));
-  } else {
-    tmp = image.clone();
-  }
-
-  float dw = inp_w - padw;
-  float dh = inp_h - padh;
-
-  dw /= 2.0f;
-  dh /= 2.0f;
-  int top = int(std::round(dh - 0.1f));
-  int bottom = int(std::round(dh + 0.1f));
-  int left = int(std::round(dw - 0.1f));
-  int right = int(std::round(dw + 0.1f));
-
-  cv::copyMakeBorder(tmp, tmp, top, bottom, left, right, cv::BORDER_CONSTANT,
-                     {114, 114, 114});
-
-  cv::dnn::blobFromImage(tmp, out, 1 / 255.f, cv::Size(), cv::Scalar(0, 0, 0),
-                         true, false, CV_32F);
-  this->pparam.ratio = 1 / r;
-  this->pparam.dw = dw;
-  this->pparam.dh = dh;
-  this->pparam.height = height;
-  this->pparam.width = width;
-}
-
 void YOLO11_CUDA::copy_from_Mat(const cv::Mat &image) {
   cv::Mat nchw;
   auto &in_binding = this->input_bindings[0];

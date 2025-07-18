@@ -1,23 +1,21 @@
 #pragma once
 
-#include "NvInferPlugin.h"
-#include "NvOnnxParser.h"
 #include "common.hpp"
 #include "yolo11.hpp"
+#include "onnxruntime_cxx_api.h"
 #include <fstream>
 using namespace det;
-using namespace nvonnxparser;
 
-class YOLO11_CUDA : public YOLO11 {
+class YOLO11_ONNX : public YOLO11 {
 public:
-  explicit YOLO11_CUDA(const std::string &engine_file_path);
-  ~YOLO11_CUDA();
+  explicit YOLO11_ONNX(const std::string &model_file_path);
+  ~YOLO11_ONNX();
 
   void make_pipe(bool warmup = true);
-  static bool generateEngine(std::string onnxPath);
   void copy_from_Mat(const cv::Mat &image);
   void copy_from_Mat(const cv::Mat &image, cv::Size &size);
   void infer();
+  /*void                 detectPostprocess(std::vector<BoxObject>& objs);*/
 
   void detectPostprocess(std::vector<BoxObject> &objs,
                          float score_thres = 0.25f, float iou_thres = 0.65f,
@@ -33,17 +31,20 @@ public:
   int num_bindings;
   int num_inputs = 0;
   int num_outputs = 0;
-  std::vector<Binding> input_bindings;
-  std::vector<Binding> output_bindings;
+  // std::vector<Binding> input_bindings;
+  // std::vector<Binding> output_bindings;
   std::vector<void *> host_ptrs;
   std::vector<void *> device_ptrs;
 
-  PreParam pparam;
-
 private:
-  nvinfer1::ICudaEngine *engine = nullptr;
-  nvinfer1::IRuntime *runtime = nullptr;
-  nvinfer1::IExecutionContext *context = nullptr;
-  cudaStream_t stream = nullptr;
-  Logger gLogger{nvinfer1::ILogger::Severity::kERROR};
+  Ort::Env env;
+  Ort::Session* session;
+  Ort::RunOptions options;
+  std::vector<const char*> inputNodeNames;
+  std::vector<const char*> outputNodeNames;
+
+  std::vector<int> imgSize;
+  float rectConfidenceThreshold;
+  float iouThreshold;
+  float resizeScales;//letterbox scale
 };
