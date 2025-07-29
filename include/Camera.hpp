@@ -13,7 +13,7 @@
 #include "yolo11-tensorrt.hpp"
 
 #elif defined(USING_ONNX)
-#include "onnxruntime_cxx_api.h"
+#include "yolo11-onnx.hpp"
 
 #elif defined(USING_REMOTE)
 #include "PeripherySession.hpp"
@@ -228,6 +228,9 @@ private:
 #if defined(USING_CUDA)
   // Pointer for on-device ML model
   YOLO11_CUDA *model = nullptr;
+
+#elif defined(USING_ONNX)
+  YOLO11_ONNX *model = nullptr;
 
 #elif defined(USING_REMOTE)
   // Remote inference session

@@ -160,7 +160,7 @@ void Camera::SetMLFrameUnavailable() { mlFrameAvailable = false; }
 cv::Mat Camera::GetMLFrame() { return mlFrame; }
 
 bool Camera::IsInferencePossible() {
-#if defined(USING_CUDA)
+#if defined(USING_CUDA) || defined(USING_ONNX)
   return model != nullptr;
 #elif defined(USING_REMOTE)
   return mlSessions.size();
@@ -180,7 +180,7 @@ void Camera::EnableInference() {
 // Start posting labelled frames
 void Camera::DestroyModel() {
   if (IsInferencePossible()) {
-#if defined(USING_CUDA)
+#if defined(USING_CUDA) || defined(USING_ONNX)
     delete model;
     model = nullptr;
 #endif
@@ -192,13 +192,16 @@ void Camera::LoadModel(std::string path) {
 #if defined(USING_CUDA)
   model = new YOLO11_CUDA(path);
   model->make_pipe(true);
+#elif defined(USING_ONNX)
+  model = new YOLO11_ONNX(path);
+  model->make_pipe(true);
 #elif defined(USING_REMOTE)
 #endif
 }
 
 // Run detect inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets) {
-#if defined(USING_CUDA)
+#if defined(USING_CUDA) || defined(USING_ONNX)
   model->copy_from_Mat(frame);
   model->infer();
   model->detectPostprocess(*dets);
@@ -215,7 +218,7 @@ void Camera::RunInference(cv::Mat frame, std::vector<det::BoxObject> *dets) {
 
 // Run pose inference on frame
 void Camera::RunInference(cv::Mat frame, std::vector<det::PoseObject> *dets) {
-#if defined(USING_CUDA)
+#if defined(USING_CUDA) || defined(USING_ONNX)
   model->copy_from_Mat(frame);
   model->infer();
   model->posePostprocess(*dets);
