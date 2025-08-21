@@ -38,8 +38,6 @@ public:
   std::vector<void *> host_ptrs;
   std::vector<void *> device_ptrs;
 
-  PreParam pparam;
-
 private:
   nvinfer1::ICudaEngine *engine = nullptr;
   nvinfer1::IRuntime *runtime = nullptr;
