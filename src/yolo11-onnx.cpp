@@ -1,4 +1,5 @@
 #include "yolo11-onnx.hpp"
+#include "onnxruntime_cxx_api.h"
 #include <regex>
 
 YOLO11_ONNX::YOLO11_ONNX(const std::string &model_file_path) {
@@ -7,6 +8,7 @@ YOLO11_ONNX::YOLO11_ONNX(const std::string &model_file_path) {
   bool result = std::regex_search(model_file_path, pattern);
   try {
     env = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "Yolo");
+    // Configure session options
     Ort::SessionOptions sessionOption;
     sessionOption.SetGraphOptimizationLevel(
         GraphOptimizationLevel::ORT_ENABLE_ALL);
@@ -15,7 +17,14 @@ YOLO11_ONNX::YOLO11_ONNX(const std::string &model_file_path) {
 
     const char *modelPath = model_file_path.c_str();
 
+    std::vector<std::string> availableProviders = Ort::GetAvailableProviders();
+    for(auto provider : availableProviders) {
+      std::cout << provider << std::endl;
+    }
+
+    // Create session
     session = new Ort::Session(env, modelPath, sessionOption);
+    // Analyze model nodes
     Ort::AllocatorWithDefaultOptions allocator;
     size_t inputNodesNum = session->GetInputCount();
     for (size_t i = 0; i < inputNodesNum; i++) {
@@ -35,6 +44,7 @@ YOLO11_ONNX::YOLO11_ONNX(const std::string &model_file_path) {
     }
     options = Ort::RunOptions{nullptr};
   } catch (const std::exception &e) {
+    // initialization error printout
     const char *str1 = "[YOLO_V11]:";
     const char *str2 = e.what();
     std::string result = std::string(str1) + std::string(str2);

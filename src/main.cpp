@@ -194,6 +194,7 @@ int main(int argc, char **argv) {
   auto table = inst.GetTable("/jetson");
 
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  std::string modelPath;
 #if defined(USING_CUDA)
   std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";
@@ -206,7 +207,13 @@ int main(int argc, char **argv) {
   } else {
     modelFound = true;
   }
+  if(modelFound) modelPath = enginePath;
 
+#endif
+#if defined(USING_ONNX)
+  std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
+  bool modelFound = IsPathExist(onnxPath);
+  if(modelFound) modelPath = onnxPath;
 #endif
 
   // Start capture on CvSources
@@ -215,10 +222,10 @@ int main(int argc, char **argv) {
   for (Camera &cam : cameras) {
     camIds.push_back(cam.GetID());
     cam.StartStream();
-#if defined(USING_CUDA)
+#if !defined(USING_REMOTE)
     if (modelFound) {
       cam.SetMLDetectionMode(Camera::MLMode::Detect);
-      cam.StartInferencing(enginePath);
+      cam.StartInferencing(modelPath);
     }
 #endif
   }
