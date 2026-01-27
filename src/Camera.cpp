@@ -288,7 +288,9 @@ void Camera::StartGrayscaleConverter() {
       continue;
     }
     if (!grayAvailable) {
-      cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+      if(targetTags.size()) {
+        cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+      }
       if (!mlFrameAvailable) {
         mlFrame = frame.clone();
         mlFrameAvailable = true;
@@ -303,6 +305,12 @@ void Camera::StartProcessor() {
   while (true) {
     if (!ValidPresent() || !grayAvailable) {
       std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
+      continue;
+    }
+    if(!targetTags.size()) {
+      frameProcessed = true;
+      tagDetections.clear();
+      tagDetectionCount = tagDetections.size();
       continue;
     }
     if (!frameProcessed) {

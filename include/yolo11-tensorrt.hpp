@@ -21,7 +21,7 @@ public:
 
   void detectPostprocess(std::vector<BoxObject> &objs,
                          float score_thres = 0.25f, float iou_thres = 0.65f,
-                         int topk = 100);
+                         int topk = 30);
   void posePostprocess(std::vector<PoseObject> &objs, float score_thres = 0.25f,
                        float iou_thres = 0.65f, int topk = 100);
   // static void          draw_objects(const cv::Mat& image,

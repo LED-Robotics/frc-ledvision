@@ -170,6 +170,11 @@ int main(int argc, char **argv) {
     auto info = cam.GetInfo();
     std::cout << "Camera found: " << std::endl;
     std::cout << info.path << ", " << info.name << std::endl;
+    auto other = info.otherPaths;
+    for(auto& path : other) {
+      std::cout << "Other: " << ", " << path << std::endl;
+    }
+    
     cameras.push_back(
         {&cam,
          camConfig,
@@ -196,7 +201,7 @@ int main(int argc, char **argv) {
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   std::string modelPath;
 #if defined(USING_CUDA)
-  std::string onnxPath = "../engines/reefscape_capped_v2.onnx";
+  std::string onnxPath = "../engines/rebuilt_v1.onnx";
   std::string enginePath = onnxPath.substr(0, onnxPath.size() - 4) + "engine";
   bool modelFound = false;
   if (!IsPathExist(enginePath)) {
