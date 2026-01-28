@@ -308,9 +308,9 @@ void Camera::StartProcessor() {
       continue;
     }
     if(!targetTags.size()) {
-      frameProcessed = true;
       tagDetections.clear();
       tagDetectionCount = tagDetections.size();
+      frameProcessed = true;
       continue;
     }
     if (!frameProcessed) {
