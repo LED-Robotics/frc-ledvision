@@ -7,6 +7,9 @@
 #include <units/length.h>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 #include "Camera.hpp"
 #include "common.hpp"
 
@@ -110,12 +113,25 @@ std::string getNewFileName() {
 // Init and return all cameras plugged in
 void initCameras(cs::VideoMode config) {
   CS_Status status = 0;
+  std::ifstream camConfigs("../cameras.json");
+  json camData = json::parse(camConfigs);
   for (const auto &caminfo : cs::EnumerateUsbCameras(&status)) {
     fmt::print("Dev {}: Path {} (Name {})\n", caminfo.dev, caminfo.path,
                caminfo.name);
     fmt::print("vid {}: pid {}\n", caminfo.vendorId, caminfo.productId);
-    cs::UsbCamera cam{"camera-" + caminfo.dev, caminfo.path};
-    /*cam.SetVideoMode(config);*/
+    cs::UsbCamera cam{&"camera-" [ caminfo.dev], caminfo.path};
+
+    // Check if any absolute camera path matches the json file
+    bool camValid = false;
+    for (auto& camDef : camData) {
+      auto other = caminfo.otherPaths;
+      for(auto& path : other) {
+        if(path == camDef["path"].template get<std::string>()) camValid = true;
+      }
+    }
+    // Do not add camera to array if it wasn't found in "cameras.json"
+    if(!camValid) continue;
+
     rawCams.push_back(cam);
   }
 }

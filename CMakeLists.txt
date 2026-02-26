@@ -28,6 +28,8 @@ message(STATUS "OpenCV Libs: \n${OpenCV_LIBS}\n")
 message(STATUS "OpenCV Libraries: \n${OpenCV_LIBRARIES}\n")
 message(STATUS "OpenCV Headers: \n${OpenCV_INCLUDE_DIRS}\n")
 
+find_package(nlohmann_json 3.2.0 REQUIRED)
+
 find_package(wpilib REQUIRED)
 
 include_directories(include ${OpenCV_INCLUDE_DIRS})
@@ -127,7 +129,7 @@ endif()
 
 add_executable(frc_ledvision ${SOURCE_FILES})
 
-target_link_libraries(frc_ledvision cameraserver ntcore cscore wpiutil wpimath apriltag)
+target_link_libraries(frc_ledvision cameraserver ntcore cscore wpiutil wpimath apriltag nlohmann_json::nlohmann_json)
 if(USING_CUDA)
   target_link_libraries(frc_ledvision nvinfer nvinfer_plugin nvonnxparser ${CUDA_LIBRARIES} ${OpenCV_LIBS})
   target_compile_definitions(frc_ledvision PUBLIC USING_CUDA=$(CUDA_FOUND))
