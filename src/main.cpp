@@ -31,6 +31,7 @@ using namespace frc;
 int width = 640;
 int height = 480;
 cs::VideoMode camConfig{cs::VideoMode::PixelFormat::kMJPEG, width, height, 60};
+const int startingStreamPort = 1185;
 
 // To store IDs of current valid cameras
 std::vector<uint8_t> currentCams;
@@ -182,6 +183,7 @@ void findInferenceServer() {
 int main(int argc, char **argv) {
   // Initialize cameras
   initCameras(camConfig);
+  int port = startingStreamPort;
   for (cs::UsbCamera &cam : rawCams) {
     auto info = cam.GetInfo();
     std::cout << "Camera found: " << std::endl;
@@ -194,7 +196,9 @@ int main(int argc, char **argv) {
     cameras.push_back(
         {&cam,
          camConfig,
-         {6.5_in, (double)640, (double)480, (double)320, (double)240}});
+         {6.5_in, (double)640, (double)480, (double)320, (double)240},
+         port++
+        });
   }
 
   // Construct camera sink/sources

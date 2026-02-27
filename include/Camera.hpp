@@ -26,7 +26,7 @@ using namespace frc;
 class Camera {
 public:
   Camera(cs::UsbCamera *cam, cs::VideoMode config,
-         AprilTagPoseEstimator::Config estConfig);
+         AprilTagPoseEstimator::Config estConfig, int port = 0);
 
   // AprilTag Detection struct
   struct TagDetection {

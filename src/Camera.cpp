@@ -1,8 +1,9 @@
 #include "Camera.hpp"
 #include "common.hpp"
+#include <cameraserver/CameraServer.h>
 
 Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config,
-               AprilTagPoseEstimator::Config estConfig)
+               AprilTagPoseEstimator::Config estConfig, int port)
     : estimator{estConfig} {
   cam = camRef;
   // Configure AprilTag detector
@@ -14,17 +15,15 @@ Camera::Camera(cs::UsbCamera *camRef, cs::VideoMode config,
 
   auto info = cam->GetInfo();
   id = info.dev;
+  if(port) {
+    frc::CameraServer::AddServer(info.name, port);
+  } else {
+    frc::CameraServer::AddServer(info.name);
+  }
   sink = new cs::CvSink{frc::CameraServer::GetVideo(*cam)};
-  /*source = new cs::CvSource{"source" + id, config};*/
   cam->SetVideoMode(config);
-  source = frc::CameraServer::PutVideo(
-      std::string_view("source" + std::to_string(id)), 640, 480);
-  /*frc::CameraServer::StartAutomaticCapture(*source);*/
-
-  /*boxLabelVector = &boxDets1;*/
-  /*inactiveBoxLabelVector = &boxDets2;*/
-  /*poseLabelVector = &poseDets1;*/
-  /*inactivePoseLabelVector = &poseDets2;*/
+  source = cs::CvSource{info.name, config};
+  frc::CameraServer::GetServer(info.name).SetSource(source);
 }
 
 uint8_t Camera::GetID() { return id; }
