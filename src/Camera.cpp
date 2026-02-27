@@ -310,6 +310,7 @@ void Camera::StartProcessor() {
       tagDetections.clear();
       tagDetectionCount = tagDetections.size();
       frameProcessed = true;
+      std::this_thread::sleep_for(std::chrono::milliseconds(threadDelay));
       continue;
     }
     if (!frameProcessed) {
@@ -379,12 +380,12 @@ void Camera::StartLabeller() {
         DrawPoseBox(labelled, det);
       }
     }
-    cv::putText(labelled,                         // target image
-                "ID: " + std::to_string(GetID()), // text
-                cv::Point(10, labelled.rows / 8), // top-left position
-                cv::FONT_HERSHEY_DUPLEX, 2.0,
-                CV_RGB(255, 255, 255), // font color
-                2);
+    // cv::putText(labelled,                         // target image
+    //             "ID: " + std::to_string(GetID()), // text
+    //             cv::Point(10, labelled.rows / 8), // top-left position
+    //             cv::FONT_HERSHEY_DUPLEX, 2.0,
+    //             CV_RGB(255, 255, 255), // font color
+    //             2);
     frameLabelled = true;
   }
 }

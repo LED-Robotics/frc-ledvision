@@ -180,7 +180,7 @@ public:
   uint32_t GetMLSessionID();
 
 private:
-  const int threadDelay = 1;
+  const int threadDelay = 20;
   std::vector<uint8_t> targetTags{22, 18};
 
   uint8_t id = -1;
